@@ -2,13 +2,15 @@ import { useState } from 'react';
 import { StartScreen } from '@/components/game/StartScreen';
 import { GameCanvas } from '@/components/game/GameCanvas';
 import { Lobby } from '@/components/game/Lobby';
+import { SkinCreator } from '@/components/game/SkinCreator';
 import { SkinData, SKINS } from '@/components/game/skins';
 
-type Screen = 'start' | 'lobby' | 'game';
+type Screen = 'start' | 'lobby' | 'game' | 'skin-creator';
 
 const Index = () => {
   const [screen, setScreen] = useState<Screen>('start');
   const [selectedSkin, setSelectedSkin] = useState<SkinData>(SKINS[0]);
+  const [customSkins, setCustomSkins] = useState<SkinData[]>([]);
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState('Player');
   const [isSinglePlayer, setIsSinglePlayer] = useState(true);
@@ -30,6 +32,21 @@ const Index = () => {
     setScreen('game');
   };
 
+  const handleSaveCustomSkin = (skin: SkinData) => {
+    setCustomSkins(prev => [...prev, skin]);
+    setSelectedSkin(skin);
+    setScreen('start');
+  };
+
+  if (screen === 'skin-creator') {
+    return (
+      <SkinCreator
+        onSave={handleSaveCustomSkin}
+        onBack={() => setScreen('start')}
+      />
+    );
+  }
+
   if (screen === 'lobby') {
     return (
       <Lobby
@@ -49,7 +66,13 @@ const Index = () => {
     );
   }
 
-  return <StartScreen onStart={handleStart} />;
+  return (
+    <StartScreen
+      onStart={handleStart}
+      customSkins={customSkins}
+      onCreateSkin={() => setScreen('skin-creator')}
+    />
+  );
 };
 
 export default Index;

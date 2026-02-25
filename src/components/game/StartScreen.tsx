@@ -5,10 +5,13 @@ import { SKINS, SkinData } from './skins';
 
 interface StartScreenProps {
   onStart: (skin: SkinData, mode: 'single' | 'multi') => void;
+  customSkins?: SkinData[];
+  onCreateSkin?: () => void;
 }
 
-export function StartScreen({ onStart }: StartScreenProps) {
-  const [selectedSkin, setSelectedSkin] = useState(SKINS[0]);
+export function StartScreen({ onStart, customSkins = [], onCreateSkin }: StartScreenProps) {
+  const allSkins = [...SKINS, ...customSkins];
+  const [selectedSkin, setSelectedSkin] = useState(allSkins[0]);
   const [showSkins, setShowSkins] = useState(false);
 
   return (
@@ -108,7 +111,7 @@ export function StartScreen({ onStart }: StartScreenProps) {
             </h2>
 
             <div className="grid grid-cols-4 gap-3 sm:gap-4 mb-8">
-              {SKINS.map((s) => (
+              {allSkins.map((s) => (
                 <button
                   key={s.id}
                   onClick={() => setSelectedSkin(s)}
@@ -163,6 +166,18 @@ export function StartScreen({ onStart }: StartScreenProps) {
                   <span className="text-xs font-game text-muted-foreground">{s.label}</span>
                 </button>
               ))}
+              {/* Create skin button */}
+              {onCreateSkin && (
+                <button
+                  onClick={onCreateSkin}
+                  className="flex flex-col items-center gap-2 p-3 rounded-lg border-2 border-dashed border-border/50 bg-background/20 hover:border-primary/50 hover:bg-background/40 transition-all duration-200"
+                >
+                  <div className="relative w-10 h-16 sm:w-12 sm:h-20 flex items-center justify-center">
+                    <span className="text-2xl">🎨</span>
+                  </div>
+                  <span className="text-xs font-game text-muted-foreground">Criar Skin</span>
+                </button>
+              )}
             </div>
 
             {/* Selected skin info */}
