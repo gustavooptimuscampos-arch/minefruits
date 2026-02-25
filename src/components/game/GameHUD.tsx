@@ -7,9 +7,11 @@ interface GameHUDProps {
   playerHealth: number;
   isNight: boolean;
   mobsKilled: number;
+  roomCode?: string;
+  playersOnline?: number;
 }
 
-export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, isNight, mobsKilled }: GameHUDProps) {
+export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, isNight, mobsKilled, roomCode, playersOnline }: GameHUDProps) {
   return (
     <div className="absolute inset-0 pointer-events-none select-none" style={{ zIndex: 10 }}>
       {/* Crosshair */}
@@ -34,6 +36,12 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
             {isNight ? '🌙 Noite' : '☀️ Dia'}
             {isNight && <span className="text-red-400 ml-1 animate-pulse">⚠️ Monstros!</span>}
           </div>
+          {roomCode && (
+            <div className="text-sm font-game text-muted-foreground">
+              👥 Online: <span className="text-foreground">{playersOnline || 1}</span>
+              <span className="text-muted-foreground/60 ml-1">({roomCode})</span>
+            </div>
+          )}
         </div>
       </div>
 

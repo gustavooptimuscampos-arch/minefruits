@@ -4,7 +4,7 @@ import { FRUIT_CONFIG } from './types';
 import { SKINS, SkinData } from './skins';
 
 interface StartScreenProps {
-  onStart: (skin: SkinData) => void;
+  onStart: (skin: SkinData, mode: 'single' | 'multi') => void;
 }
 
 export function StartScreen({ onStart }: StartScreenProps) {
@@ -170,18 +170,26 @@ export function StartScreen({ onStart }: StartScreenProps) {
               <p className="font-game text-lg text-foreground">{selectedSkin.name}</p>
             </div>
 
-            <div className="flex gap-4 justify-center">
+            <div className="flex flex-col gap-3 items-center">
+              <div className="flex gap-3 justify-center">
+                <button
+                  onClick={() => setShowSkins(false)}
+                  className="font-pixel text-xs px-6 py-3 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 transition-colors"
+                >
+                  ← VOLTAR
+                </button>
+                <button
+                  onClick={() => onStart(selectedSkin, 'single')}
+                  className="font-pixel text-sm px-8 py-3 bg-primary text-primary-foreground rounded-lg box-glow-green hover:scale-105 transition-transform duration-200 active:scale-95"
+                >
+                  ▶ SOLO
+                </button>
+              </div>
               <button
-                onClick={() => setShowSkins(false)}
-                className="font-pixel text-xs px-6 py-3 bg-muted text-muted-foreground rounded-lg hover:bg-muted/80 transition-colors"
+                onClick={() => onStart(selectedSkin, 'multi')}
+                className="font-pixel text-sm px-8 py-3 bg-secondary text-secondary-foreground rounded-lg box-glow-orange hover:scale-105 transition-transform duration-200 active:scale-95"
               >
-                ← VOLTAR
-              </button>
-              <button
-                onClick={() => onStart(selectedSkin)}
-                className="font-pixel text-sm px-8 py-3 bg-primary text-primary-foreground rounded-lg box-glow-green hover:scale-105 transition-transform duration-200 active:scale-95"
-              >
-                ▶ INICIAR
+                👥 MULTIPLAYER
               </button>
             </div>
           </>
