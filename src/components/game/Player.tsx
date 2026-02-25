@@ -1,21 +1,24 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { PointerLockControls } from '@react-three/drei';
 import * as THREE from 'three';
 import { BlockType, Fruit } from './types';
 import { MobData } from './mobs';
+import { SkinData } from './skins';
+import { PlayerModel } from './PlayerModel';
 import { getGroundHeight } from './terrainGenerator';
 
 interface PlayerProps {
   blocks: Record<string, BlockType>;
   fruits: Fruit[];
   mobs: MobData[];
+  skin: SkinData;
   onBlockBreak: (key: string) => void;
   onFruitCollect: (id: string) => void;
   onMobHit: (id: string, damage: number) => void;
 }
 
-export function Player({ blocks, fruits, mobs, onBlockBreak, onFruitCollect, onMobHit }: PlayerProps) {
+export function Player({ blocks, fruits, mobs, skin, onBlockBreak, onFruitCollect, onMobHit }: PlayerProps) {
   const { camera } = useThree();
   const controlsRef = useRef<any>(null);
   const velocity = useRef(new THREE.Vector3(0, 0, 0));
@@ -23,6 +26,11 @@ export function Player({ blocks, fruits, mobs, onBlockBreak, onFruitCollect, onM
   const blocksRef = useRef(blocks);
   const fruitsRef = useRef(fruits);
   const mobsRef = useRef(mobs);
+  const [thirdPerson, setThirdPerson] = useState(false);
+  const thirdPersonRef = useRef(false);
+  const playerPos = useRef(new THREE.Vector3(0, 8, 0));
+  const playerYaw = useRef(0);
+  const isMovingRef = useRef(false);
   blocksRef.current = blocks;
   fruitsRef.current = fruits;
   mobsRef.current = mobs;
@@ -33,11 +41,15 @@ export function Player({ blocks, fruits, mobs, onBlockBreak, onFruitCollect, onM
   const PLAYER_HEIGHT = 1.7;
   const ATTACK_RANGE = 4;
   const ATTACK_DAMAGE = 8;
+  const THIRD_PERSON_DISTANCE = 5;
+  const THIRD_PERSON_HEIGHT = 2;
 
   useEffect(() => {
     camera.position.set(0, 8, 0);
+    playerPos.current.set(0, 8, 0);
   }, [camera]);
 
+  // Toggle view with V key
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
       switch (e.code) {
@@ -46,6 +58,10 @@ export function Player({ blocks, fruits, mobs, onBlockBreak, onFruitCollect, onM
         case 'KeyA': case 'ArrowLeft': moveState.current.left = true; break;
         case 'KeyD': case 'ArrowRight': moveState.current.right = true; break;
         case 'Space': moveState.current.jump = true; break;
+        case 'KeyV':
+          thirdPersonRef.current = !thirdPersonRef.current;
+          setThirdPerson(thirdPersonRef.current);
+          break;
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
@@ -65,37 +81,35 @@ export function Player({ blocks, fruits, mobs, onBlockBreak, onFruitCollect, onM
     };
   }, []);
 
-  // Click: break blocks OR attack mobs
+  // Click: attack mobs or break blocks
   useEffect(() => {
     const onClick = () => {
       if (!document.pointerLockElement) return;
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
 
-      // Check mob hit first (raycast towards mobs)
       let hitMob = false;
       const currentMobs = mobsRef.current;
       for (const mob of currentMobs) {
         if (mob.dead) continue;
         const mobPos = new THREE.Vector3(...mob.position);
-        const toMob = mobPos.clone().sub(camera.position);
+        const origin = thirdPersonRef.current ? playerPos.current : camera.position;
+        const toMob = mobPos.clone().sub(origin);
         const dist = toMob.length();
         if (dist > ATTACK_RANGE) continue;
-
-        // Check if looking towards mob
         toMob.normalize();
         const dot = dir.dot(toMob);
-        if (dot > 0.85) { // roughly aimed at mob
+        if (dot > 0.7) {
           onMobHit(mob.id, ATTACK_DAMAGE);
           hitMob = true;
           break;
         }
       }
 
-      // If no mob hit, try breaking a block
       if (!hitMob) {
+        const origin = thirdPersonRef.current ? playerPos.current.clone() : camera.position.clone();
         for (let d = 0.5; d < 5; d += 0.3) {
-          const pos = camera.position.clone().add(dir.clone().multiplyScalar(d));
+          const pos = origin.clone().add(dir.clone().multiplyScalar(d));
           const bx = Math.floor(pos.x);
           const by = Math.floor(pos.y);
           const bz = Math.floor(pos.z);
@@ -129,41 +143,72 @@ export function Player({ blocks, fruits, mobs, onBlockBreak, onFruitCollect, onM
     if (backward) moveDir.sub(forwardDir);
     if (right) moveDir.add(rightDir);
     if (left) moveDir.sub(rightDir);
-    if (moveDir.length() > 0) moveDir.normalize();
+    const isMoving = moveDir.length() > 0;
+    isMovingRef.current = isMoving;
+    if (isMoving) moveDir.normalize();
 
-    camera.position.x += moveDir.x * SPEED * dt;
-    camera.position.z += moveDir.z * SPEED * dt;
+    // Update player position
+    playerPos.current.x += moveDir.x * SPEED * dt;
+    playerPos.current.z += moveDir.z * SPEED * dt;
 
     velocity.current.y -= GRAVITY * dt;
 
-    const groundY = getGroundHeight(camera.position.x, camera.position.z, currentBlocks);
-    const onGround = camera.position.y <= groundY + PLAYER_HEIGHT + 0.1;
+    const groundY = getGroundHeight(playerPos.current.x, playerPos.current.z, currentBlocks);
+    const onGround = playerPos.current.y <= groundY + PLAYER_HEIGHT + 0.1;
 
     if (jump && onGround) {
       velocity.current.y = JUMP_SPEED;
     }
 
-    camera.position.y += velocity.current.y * dt;
+    playerPos.current.y += velocity.current.y * dt;
 
-    if (camera.position.y < groundY + PLAYER_HEIGHT) {
-      camera.position.y = groundY + PLAYER_HEIGHT;
+    if (playerPos.current.y < groundY + PLAYER_HEIGHT) {
+      playerPos.current.y = groundY + PLAYER_HEIGHT;
       velocity.current.y = 0;
     }
 
-    if (camera.position.y < -5) {
-      camera.position.set(0, 8, 0);
+    if (playerPos.current.y < -5) {
+      playerPos.current.set(0, 8, 0);
       velocity.current.set(0, 0, 0);
+    }
+
+    // Store yaw for model rotation
+    playerYaw.current = Math.atan2(forwardDir.x, forwardDir.z);
+
+    if (thirdPersonRef.current) {
+      // Third person: camera behind player
+      const behind = forwardDir.clone().multiplyScalar(-THIRD_PERSON_DISTANCE);
+      camera.position.set(
+        playerPos.current.x + behind.x,
+        playerPos.current.y + THIRD_PERSON_HEIGHT,
+        playerPos.current.z + behind.z,
+      );
+      camera.lookAt(playerPos.current.x, playerPos.current.y, playerPos.current.z);
+    } else {
+      // First person
+      camera.position.copy(playerPos.current);
     }
 
     // Fruit collection
     fruitsRef.current.forEach(fruit => {
       if (fruit.collected) return;
-      const dist = camera.position.distanceTo(new THREE.Vector3(...fruit.position));
+      const dist = playerPos.current.distanceTo(new THREE.Vector3(...fruit.position));
       if (dist < 1.8) {
         onFruitCollect(fruit.id);
       }
     });
   });
 
-  return <PointerLockControls ref={controlsRef} />;
+  return (
+    <>
+      <PointerLockControls ref={controlsRef} />
+      <PlayerModel
+        skin={skin}
+        position={playerPos.current}
+        rotation={playerYaw.current}
+        isMoving={isMovingRef.current}
+        isThirdPerson={thirdPerson}
+      />
+    </>
+  );
 }
