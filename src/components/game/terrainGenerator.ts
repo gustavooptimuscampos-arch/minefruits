@@ -1,4 +1,4 @@
-import { BlockType, Fruit, FruitType } from './types';
+import { BlockType, Fruit, FruitType, GameCoin } from './types';
 
 function noise2D(x: number, z: number, seed = 0): number {
   const n = Math.sin(x * 12.9898 + z * 78.233 + seed) * 43758.5453;
@@ -244,4 +244,24 @@ export function generateFruits(blocks: Record<string, BlockType>): Fruit[] {
       collected: false,
     };
   });
+}
+
+export function generateCoins(blocks: Record<string, BlockType>): GameCoin[] {
+  const coins: GameCoin[] = [];
+  const positions: [number, number][] = [
+    [-5, 3], [7, -5], [3, 8], [-10, -3], [2, -9],
+    [8, 8], [-3, -8], [12, 2], [-7, 7], [5, -3],
+    [-12, 5], [10, -10], [-4, 12], [6, 6], [-9, -9],
+    [1, 4], [-6, 1], [9, -2], [-2, -5], [4, 10],
+  ];
+  positions.forEach((pos, i) => {
+    const groundY = getGroundHeight(pos[0], pos[1], blocks);
+    coins.push({
+      id: `coin-${i}`,
+      position: [pos[0] + 0.5, groundY + 1.2, pos[1] + 0.5],
+      collected: false,
+      value: i % 5 === 0 ? 5 : 1, // Every 5th coin is worth 5
+    });
+  });
+  return coins;
 }
