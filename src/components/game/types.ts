@@ -1,4 +1,4 @@
-export type BlockType = 'grass' | 'dirt' | 'stone' | 'wood' | 'leaves';
+export type BlockType = 'grass' | 'dirt' | 'stone' | 'wood' | 'leaves' | 'sand' | 'water' | 'snow' | 'flower';
 
 export type FruitType = 'flame' | 'ice' | 'light' | 'dark' | 'rubber';
 
@@ -15,6 +15,10 @@ export const BLOCK_COLORS: Record<BlockType, string> = {
   stone: '#707070',
   wood: '#6B4226',
   leaves: '#2E7D32',
+  sand: '#D4B96A',
+  water: '#1E90FF',
+  snow: '#F0F0F0',
+  flower: '#FF6B9D',
 };
 
 export const FRUIT_CONFIG: Record<FruitType, { color: string; emissive: string; name: string; power: string }> = {
