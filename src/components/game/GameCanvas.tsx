@@ -9,6 +9,7 @@ import { DayNightCycle } from './DayNightCycle';
 import { RemotePlayersRenderer } from './RemotePlayersRenderer';
 import { GameHUD } from './GameHUD';
 import { CraftingUI } from './CraftingUI';
+import { GameChat, ChatMessage } from './GameChat';
 import { FruitType, BlockType, BLOCK_DROPS, MINING_REQUIREMENTS, TOOL_DAMAGE, ItemType } from './types';
 import { MobData, spawnMobs } from './mobs';
 import { SkinData } from './skins';
@@ -35,6 +36,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
   const [timeOfDay, setTimeOfDay] = useState(0);
   const [mobs, setMobs] = useState<MobData[]>([]);
   const [mobsKilled, setMobsKilled] = useState(0);
+  const [localChat, setLocalChat] = useState<ChatMessage[]>([]);
 
   const inventory = useInventory();
 
@@ -44,6 +46,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
     skin,
   });
   const isMultiplayer = !!multiplayer;
+  const playerName = multiplayer?.playerName || 'Player';
   const wasNightRef = useRef(false);
   const spawnedRef = useRef(false);
 
@@ -232,6 +235,18 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
           onClose={() => inventory.setCraftingOpen(false)}
         />
       )}
+      <GameChat
+        playerName={playerName}
+        messages={isMultiplayer ? mp.chatMessages : localChat}
+        onSendMessage={isMultiplayer ? mp.sendChatMessage : (text) => {
+          setLocalChat(prev => [...prev.slice(-49), {
+            id: `local-${Date.now()}`,
+            sender: playerName,
+            text,
+            timestamp: Date.now(),
+          }]);
+        }}
+      />
     </div>
   );
 }
