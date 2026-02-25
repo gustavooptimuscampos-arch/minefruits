@@ -9,9 +9,14 @@ import { DayNightCycle } from './DayNightCycle';
 import { GameHUD } from './GameHUD';
 import { FruitType } from './types';
 import { MobData, spawnMobs } from './mobs';
+import { SkinData } from './skins';
 import { generateTerrain, generateFruits } from './terrainGenerator';
 
-export function GameCanvas() {
+interface GameCanvasProps {
+  skin: SkinData;
+}
+
+export function GameCanvas({ skin }: GameCanvasProps) {
   const initialBlocks = useMemo(() => generateTerrain(32), []);
   const [blocks, setBlocks] = useState(initialBlocks);
   const initialFruits = useMemo(() => generateFruits(initialBlocks), [initialBlocks]);
@@ -150,6 +155,7 @@ export function GameCanvas() {
           blocks={blocks}
           fruits={fruits}
           mobs={mobs}
+          skin={skin}
           onBlockBreak={handleBlockBreak}
           onFruitCollect={handleFruitCollect}
           onMobHit={handleMobHit}
