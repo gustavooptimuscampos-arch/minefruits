@@ -1,32 +1,65 @@
 import { useState } from 'react';
-import { COIN_PACKS, SHOP_ITEMS } from './types';
+import { COIN_PACKS, SHOP_ITEMS, ShopItem, AccessoryType } from './types';
 
 interface CoinShopProps {
   coins: number;
+  ownedItems: string[];
+  equippedItems: Record<string, string | null>;
   onClose: () => void;
   onPurchaseItem: (itemId: string, cost: number) => boolean;
+  onEquipItem: (itemId: string) => void;
+  onUnequipItem: (type: AccessoryType) => void;
 }
 
-export function CoinShop({ coins, onClose, onPurchaseItem }: CoinShopProps) {
-  const [tab, setTab] = useState<'shop' | 'buy'>('shop');
+const TABS: { key: AccessoryType | 'buy' | 'all'; label: string }[] = [
+  { key: 'all', label: '🛒 Todos' },
+  { key: 'hat', label: '🎩 Chapéus' },
+  { key: 'cape', label: '🧣 Capas' },
+  { key: 'aura', label: '✨ Auras' },
+  { key: 'body_color', label: '🎨 Cores' },
+  { key: 'buy', label: '🪙 Comprar' },
+];
+
+export function CoinShop({ coins, ownedItems, equippedItems, onClose, onPurchaseItem, onEquipItem, onUnequipItem }: CoinShopProps) {
+  const [tab, setTab] = useState<string>('all');
   const [purchaseMessage, setPurchaseMessage] = useState('');
 
-  const handleBuy = (itemId: string, cost: number) => {
-    if (onPurchaseItem(itemId, cost)) {
-      setPurchaseMessage('✅ Comprado com sucesso!');
-    } else {
-      setPurchaseMessage('❌ VoxelCoins insuficientes!');
-    }
-    setTimeout(() => setPurchaseMessage(''), 2000);
+  const showMessage = (msg: string, duration = 2000) => {
+    setPurchaseMessage(msg);
+    setTimeout(() => setPurchaseMessage(''), duration);
   };
+
+  const handleBuy = (item: ShopItem) => {
+    if (ownedItems.includes(item.id)) {
+      // Already owned — equip/unequip
+      const equipped = equippedItems[item.type];
+      if (equipped === item.id) {
+        onUnequipItem(item.type);
+        showMessage('🔄 Desequipado!');
+      } else {
+        onEquipItem(item.id);
+        showMessage('✅ Equipado!');
+      }
+      return;
+    }
+    if (onPurchaseItem(item.id, item.cost)) {
+      showMessage('✅ Comprado e equipado!');
+    } else {
+      showMessage('❌ VoxelCoins insuficientes!');
+    }
+  };
+
+  const filteredItems = tab === 'all'
+    ? SHOP_ITEMS.filter(i => ['hat', 'cape', 'aura', 'body_color'].includes(i.type))
+    : SHOP_ITEMS.filter(i => i.type === tab);
 
   return (
     <div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-sm" style={{ zIndex: 50 }}>
-      <div className="bg-background border border-border rounded-xl p-4 w-full max-w-md max-h-[80vh] overflow-y-auto">
+      <div className="bg-background border border-border rounded-xl p-4 w-full max-w-lg max-h-[85vh] overflow-y-auto">
         {/* Header */}
         <div className="flex justify-between items-center mb-4">
           <div>
-            <h2 className="font-pixel text-lg text-primary">🪙 LOJA</h2>
+            <h2 className="font-pixel text-lg text-primary">🪙 LOJA DE ACESSÓRIOS</h2>
             <p className="text-xs font-game text-muted-foreground mt-1">
               Saldo: <span className="text-secondary font-bold">{coins} VoxelCoins</span>
             </p>
@@ -37,23 +70,18 @@ export function CoinShop({ coins, onClose, onPurchaseItem }: CoinShopProps) {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={() => setTab('shop')}
-            className={`font-game text-xs px-4 py-2 rounded-lg transition-colors ${
-              tab === 'shop' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
-            }`}
-          >
-            🛒 Itens
-          </button>
-          <button
-            onClick={() => setTab('buy')}
-            className={`font-game text-xs px-4 py-2 rounded-lg transition-colors ${
-              tab === 'buy' ? 'bg-secondary text-secondary-foreground' : 'bg-muted text-muted-foreground'
-            }`}
-          >
-            🪙 Comprar Moedas
-          </button>
+        <div className="flex gap-1 mb-4 flex-wrap">
+          {TABS.map(t => (
+            <button
+              key={t.key}
+              onClick={() => setTab(t.key)}
+              className={`font-game text-[10px] px-3 py-1.5 rounded-lg transition-colors ${
+                tab === t.key ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'
+              }`}
+            >
+              {t.label}
+            </button>
+          ))}
         </div>
 
         {/* Purchase message */}
@@ -63,33 +91,59 @@ export function CoinShop({ coins, onClose, onPurchaseItem }: CoinShopProps) {
           </div>
         )}
 
-        {tab === 'shop' ? (
+        {tab !== 'buy' ? (
           <div className="space-y-2">
-            {SHOP_ITEMS.map(item => {
+            {filteredItems.map(item => {
+              const owned = ownedItems.includes(item.id);
+              const equipped = equippedItems[item.type] === item.id;
               const canAfford = coins >= item.cost;
               return (
                 <div
                   key={item.id}
-                  className="flex items-center justify-between p-3 rounded-lg border border-border/30 bg-muted/10"
+                  className={`flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                    equipped
+                      ? 'border-primary/50 bg-primary/10'
+                      : 'border-border/30 bg-muted/10'
+                  }`}
                 >
-                  <div>
+                  {/* Color preview */}
+                  {item.color && (
+                    <div
+                      className="w-8 h-8 rounded-md flex-shrink-0"
+                      style={{
+                        backgroundColor: item.color,
+                        boxShadow: item.emissive ? `0 0 10px ${item.emissive}` : undefined,
+                      }}
+                    />
+                  )}
+                  <div className="flex-1 min-w-0">
                     <p className="text-sm font-game text-foreground">{item.name}</p>
+                    {item.description && (
+                      <p className="text-[10px] font-game text-muted-foreground">{item.description}</p>
+                    )}
                     <p className="text-xs font-game text-secondary">🪙 {item.cost} VoxelCoins</p>
                   </div>
                   <button
-                    onClick={() => handleBuy(item.id, item.cost)}
-                    disabled={!canAfford}
-                    className={`font-pixel text-xs px-4 py-2 rounded-lg transition-all ${
-                      canAfford
-                        ? 'bg-primary text-primary-foreground hover:scale-105 active:scale-95'
-                        : 'bg-muted text-muted-foreground opacity-40 cursor-not-allowed'
+                    onClick={() => handleBuy(item)}
+                    disabled={!owned && !canAfford}
+                    className={`font-pixel text-[10px] px-3 py-2 rounded-lg transition-all flex-shrink-0 ${
+                      equipped
+                        ? 'bg-primary text-primary-foreground'
+                        : owned
+                          ? 'bg-secondary text-secondary-foreground hover:scale-105 active:scale-95'
+                          : canAfford
+                            ? 'bg-primary text-primary-foreground hover:scale-105 active:scale-95'
+                            : 'bg-muted text-muted-foreground opacity-40 cursor-not-allowed'
                     }`}
                   >
-                    Comprar
+                    {equipped ? '✓ Equipado' : owned ? 'Equipar' : 'Comprar'}
                   </button>
                 </div>
               );
             })}
+            {filteredItems.length === 0 && (
+              <p className="text-center text-sm font-game text-muted-foreground py-4">Nenhum item nesta categoria</p>
+            )}
           </div>
         ) : (
           <div className="space-y-2">
@@ -107,8 +161,7 @@ export function CoinShop({ coins, onClose, onPurchaseItem }: CoinShopProps) {
                 <button
                   className="font-pixel text-xs px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:scale-105 transition-transform active:scale-95"
                   onClick={() => {
-                    setPurchaseMessage(`💳 Pagamento de ${pack.priceLabel} — Em breve!`);
-                    setTimeout(() => setPurchaseMessage(''), 3000);
+                    showMessage(`💳 Pagamento de ${pack.priceLabel} — Em breve!`, 3000);
                   }}
                 >
                   {pack.priceLabel}
