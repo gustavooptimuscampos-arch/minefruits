@@ -109,6 +109,9 @@ export function StartScreen({ onStart, customSkins = [], onCreateSkin }: StartSc
                 <p className="text-xs font-game text-destructive">
                   ⚠️ PROIBIDO IDENTIDADES FALSAS — Pena de multa de R$ 3.000
                 </p>
+                <p className="text-[10px] font-game text-destructive/80 mt-1">
+                  Se não pagar no prazo, será obrigatório desinstalar o jogo.
+                </p>
               </div>
             </div>
           </>
