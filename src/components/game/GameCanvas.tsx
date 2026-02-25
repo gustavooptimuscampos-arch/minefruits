@@ -1,11 +1,14 @@
-import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Sky, Cloud } from '@react-three/drei';
+import { Sky, Cloud, Stars } from '@react-three/drei';
 import { Terrain } from './Terrain';
 import { Player } from './Player';
 import { Fruits } from './Fruits';
+import { MobsRenderer } from './MobsRenderer';
+import { DayNightCycle } from './DayNightCycle';
 import { GameHUD } from './GameHUD';
 import { FruitType } from './types';
+import { MobData, spawnMobs } from './mobs';
 import { generateTerrain, generateFruits } from './terrainGenerator';
 
 export function GameCanvas() {
@@ -17,6 +20,31 @@ export function GameCanvas() {
   const [collectedFruits, setCollectedFruits] = useState<FruitType[]>([]);
   const [blocksDestroyed, setBlocksDestroyed] = useState(0);
   const [locked, setLocked] = useState(false);
+  const [playerHealth, setPlayerHealth] = useState(100);
+  const [isNight, setIsNight] = useState(false);
+  const [timeOfDay, setTimeOfDay] = useState(0);
+  const [mobs, setMobs] = useState<MobData[]>([]);
+  const [mobsKilled, setMobsKilled] = useState(0);
+  const wasNightRef = useRef(false);
+  const spawnedRef = useRef(false);
+
+  // Spawn mobs when day/night changes
+  useEffect(() => {
+    if (!spawnedRef.current) {
+      setMobs(spawnMobs(blocks, false));
+      spawnedRef.current = true;
+    }
+  }, [blocks]);
+
+  const handleTimeChange = useCallback((time: number, night: boolean) => {
+    setTimeOfDay(time);
+    if (night !== wasNightRef.current) {
+      wasNightRef.current = night;
+      setIsNight(night);
+      // Respawn mobs on transition
+      setMobs(spawnMobs(blocks, night));
+    }
+  }, [blocks]);
 
   useEffect(() => {
     const onLockChange = () => {
@@ -56,66 +84,84 @@ export function GameCanvas() {
     }
   }, [fruits]);
 
+  const handleMobHit = useCallback((id: string, damage: number) => {
+    setMobs(prev => prev.map(m => {
+      if (m.id !== id) return m;
+      const newHealth = m.health - damage;
+      if (newHealth <= 0) {
+        setScore(s => s + (m.hostile ? 50 : 10));
+        setMobsKilled(k => k + 1);
+        return { ...m, health: 0, dead: true };
+      }
+      return { ...m, health: newHealth };
+    }));
+  }, []);
+
+  const handlePlayerDamage = useCallback((damage: number) => {
+    setPlayerHealth(prev => {
+      const newHealth = Math.max(0, prev - damage);
+      if (newHealth <= 0) {
+        // Respawn
+        setTimeout(() => setPlayerHealth(100), 1500);
+      }
+      return newHealth;
+    });
+  }, []);
+
   return (
     <div className="relative w-full h-screen bg-background">
       <Canvas
         shadows
         camera={{ fov: 70, near: 0.1, far: 250 }}
-        style={{ background: '#87CEEB' }}
-        gl={{ antialias: true, toneMapping: 3, toneMappingExposure: 1.1 }}
+        style={{ background: isNight ? '#0a0a1a' : '#87CEEB' }}
+        gl={{ antialias: true, toneMapping: 3, toneMappingExposure: isNight ? 0.6 : 1.1 }}
       >
         <Sky
-          sunPosition={[100, 40, 60]}
-          turbidity={3}
-          rayleigh={0.5}
+          sunPosition={[
+            Math.sin(timeOfDay * Math.PI * 2) * 100,
+            Math.cos(timeOfDay * Math.PI * 2) * 80,
+            60,
+          ]}
+          turbidity={isNight ? 20 : 3}
+          rayleigh={isNight ? 0 : 0.5}
           mieCoefficient={0.003}
           mieDirectionalG={0.7}
         />
-        <Cloud
-          opacity={0.4}
-          speed={0.2}
-          segments={20}
-          position={[0, 30, -20]}
-        />
-        <Cloud
-          opacity={0.3}
-          speed={0.15}
-          segments={15}
-          position={[-30, 35, 10]}
-        />
-        <fog attach="fog" args={['#b0d4f1', 60, 140]} />
-        
-        {/* Realistic lighting setup */}
-        <ambientLight intensity={0.35} color="#c4d7ed" />
-        <directionalLight
-          position={[60, 80, 40]}
-          intensity={1.5}
-          castShadow
-          shadow-mapSize-width={2048}
-          shadow-mapSize-height={2048}
-          shadow-camera-far={150}
-          shadow-camera-left={-40}
-          shadow-camera-right={40}
-          shadow-camera-top={40}
-          shadow-camera-bottom={-40}
-          shadow-bias={-0.001}
-          color="#FFF5E1"
-        />
-        <hemisphereLight intensity={0.4} color="#87CEEB" groundColor="#3d6b2e" />
-        
+        {isNight && <Stars radius={100} depth={50} count={3000} factor={4} fade speed={1} />}
+        {!isNight && (
+          <>
+            <Cloud opacity={0.4} speed={0.2} segments={20} position={[0, 30, -20]} />
+            <Cloud opacity={0.3} speed={0.15} segments={15} position={[-30, 35, 10]} />
+          </>
+        )}
+        <fog attach="fog" args={[isNight ? '#0a0a2a' : '#b0d4f1', isNight ? 20 : 60, isNight ? 70 : 140]} />
+
+        <DayNightCycle onTimeChange={handleTimeChange} speed={0.012} />
+
         <Terrain blocks={blocks} />
         <Fruits fruits={fruits} />
+        <MobsRenderer
+          mobs={mobs}
+          blocks={blocks}
+          onMobHit={handleMobHit}
+          onPlayerDamage={handlePlayerDamage}
+        />
         <Player
           blocks={blocks}
           fruits={fruits}
+          mobs={mobs}
           onBlockBreak={handleBlockBreak}
           onFruitCollect={handleFruitCollect}
+          onMobHit={handleMobHit}
         />
       </Canvas>
       <GameHUD
         score={score}
         collectedFruits={collectedFruits}
         blocksDestroyed={blocksDestroyed}
+        playerHealth={playerHealth}
+        isNight={isNight}
+        mobsKilled={mobsKilled}
       />
     </div>
   );

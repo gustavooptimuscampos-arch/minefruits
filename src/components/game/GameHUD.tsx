@@ -1,12 +1,15 @@
-import { Fruit, FRUIT_CONFIG, FruitType } from './types';
+import { FRUIT_CONFIG, FruitType } from './types';
 
 interface GameHUDProps {
   score: number;
   collectedFruits: FruitType[];
   blocksDestroyed: number;
+  playerHealth: number;
+  isNight: boolean;
+  mobsKilled: number;
 }
 
-export function GameHUD({ score, collectedFruits, blocksDestroyed }: GameHUDProps) {
+export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, isNight, mobsKilled }: GameHUDProps) {
   return (
     <div className="absolute inset-0 pointer-events-none select-none" style={{ zIndex: 10 }}>
       {/* Crosshair */}
@@ -23,15 +26,58 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed }: GameHUDProp
 
       {/* Stats */}
       <div className="absolute top-4 left-4">
-        <div className="bg-background/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-border/50">
+        <div className="bg-background/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-border/50 space-y-1">
           <div className="text-sm font-game text-muted-foreground">⛏️ Blocos: <span className="text-foreground">{blocksDestroyed}</span></div>
           <div className="text-sm font-game text-muted-foreground">🍎 Frutas: <span className="text-foreground">{collectedFruits.length}/10</span></div>
+          <div className="text-sm font-game text-muted-foreground">💀 Mobs: <span className="text-foreground">{mobsKilled}</span></div>
+          <div className="text-sm font-game text-muted-foreground">
+            {isNight ? '🌙 Noite' : '☀️ Dia'}
+            {isNight && <span className="text-red-400 ml-1 animate-pulse">⚠️ Monstros!</span>}
+          </div>
         </div>
       </div>
 
+      {/* Health bar */}
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-48">
+        <div className="bg-background/60 backdrop-blur-sm rounded-full border border-border/50 p-1">
+          <div className="flex items-center gap-2 px-2">
+            <span className="text-xs font-game">❤️</span>
+            <div className="flex-1 h-3 bg-muted/50 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-300"
+                style={{
+                  width: `${playerHealth}%`,
+                  backgroundColor: playerHealth > 60 ? '#4CAF50' : playerHealth > 30 ? '#FF9800' : '#f44336',
+                }}
+              />
+            </div>
+            <span className="text-xs font-game text-foreground">{playerHealth}</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Death screen */}
+      {playerHealth <= 0 && (
+        <div className="absolute inset-0 flex items-center justify-center bg-red-900/50 backdrop-blur-sm">
+          <div className="text-center">
+            <p className="font-pixel text-red-400 text-2xl mb-2">VOCÊ MORREU!</p>
+            <p className="font-game text-muted-foreground text-sm">Renascendo...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Night warning */}
+      {isNight && (
+        <div className="absolute top-16 right-4">
+          <div className="bg-red-900/40 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-red-500/30">
+            <span className="text-xs font-game text-red-300">🌙 Cuidado com os monstros!</span>
+          </div>
+        </div>
+      )}
+
       {/* Collected fruits */}
       {collectedFruits.length > 0 && (
-        <div className="absolute bottom-16 right-4 flex flex-col gap-1.5 items-end">
+        <div className="absolute bottom-28 right-4 flex flex-col gap-1.5 items-end">
           {collectedFruits.map((type, i) => {
             const config = FRUIT_CONFIG[type];
             return (
@@ -54,7 +100,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed }: GameHUDProp
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-center">
         <div className="bg-background/60 backdrop-blur-sm rounded-lg px-4 py-2 border border-border/50">
           <span className="text-xs font-game text-muted-foreground">
-            WASD mover • Mouse olhar • Clique quebrar • Espaço pular • ESC sair
+            WASD mover • Mouse olhar • Clique atacar/quebrar • Espaço pular
           </span>
         </div>
       </div>
