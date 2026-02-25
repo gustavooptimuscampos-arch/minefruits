@@ -102,6 +102,15 @@ export function StartScreen({ onStart, customSkins = [], onCreateSkin }: StartSc
                 <span className="bg-muted px-2 py-1 rounded">V Câmera</span>
               </div>
             </div>
+
+            {/* Identity warning */}
+            <div className="animate-slide-up mt-6" style={{ animationDelay: '1.1s', opacity: 0 }}>
+              <div className="inline-block bg-destructive/10 border border-destructive/30 rounded-lg px-4 py-2">
+                <p className="text-xs font-game text-destructive">
+                  ⚠️ PROIBIDO IDENTIDADES FALSAS — Pena de multa de R$ 3.000
+                </p>
+              </div>
+            </div>
           </>
         ) : (
           <>
