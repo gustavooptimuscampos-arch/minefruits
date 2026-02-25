@@ -36,7 +36,7 @@ export interface Fruit {
 }
 
 export const BLOCK_COLORS: Record<BlockType, string> = {
-  grass: '#5a9e4b',
+  grass: '#2ecc40',
   dirt: '#7a5c2e',
   stone: '#8a8a8a',
   wood: '#5a3a1a',
