@@ -1,4 +1,4 @@
-import { FRUIT_CONFIG, FruitType } from './types';
+import { FRUIT_CONFIG, FruitType, ITEM_CONFIG, ItemType, Item } from './types';
 
 interface GameHUDProps {
   score: number;
@@ -9,9 +9,17 @@ interface GameHUDProps {
   mobsKilled: number;
   roomCode?: string;
   playersOnline?: number;
+  inventory: {
+    items: Item[];
+    hotbar: (ItemType | null)[];
+    selectedSlot: number;
+    setSelectedSlot: (slot: number) => void;
+    equippedItem: ItemType | null;
+    setHotbar: React.Dispatch<React.SetStateAction<(ItemType | null)[]>>;
+  };
 }
 
-export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, isNight, mobsKilled, roomCode, playersOnline }: GameHUDProps) {
+export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, isNight, mobsKilled, roomCode, playersOnline, inventory }: GameHUDProps) {
   return (
     <div className="absolute inset-0 pointer-events-none select-none" style={{ zIndex: 10 }}>
       {/* Crosshair */}
@@ -46,7 +54,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
       </div>
 
       {/* Health bar */}
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 w-48">
+      <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-48">
         <div className="bg-background/60 backdrop-blur-sm rounded-full border border-border/50 p-1">
           <div className="flex items-center gap-2 px-2">
             <span className="text-xs font-game">❤️</span>
@@ -63,6 +71,49 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
           </div>
         </div>
       </div>
+
+      {/* Hotbar */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 pointer-events-auto">
+        <div className="flex gap-1 bg-background/70 backdrop-blur-sm rounded-lg p-1 border border-border/50">
+          {inventory.hotbar.map((item, i) => {
+            const isSelected = inventory.selectedSlot === i;
+            const config = item ? ITEM_CONFIG[item] : null;
+            return (
+              <button
+                key={i}
+                onClick={() => inventory.setSelectedSlot(i)}
+                className={`w-10 h-10 rounded flex items-center justify-center text-lg transition-all ${
+                  isSelected
+                    ? 'bg-primary/30 border-2 border-primary scale-110'
+                    : 'bg-muted/30 border border-border/30 hover:bg-muted/50'
+                }`}
+              >
+                {config ? (
+                  <span title={config.label}>{config.emoji}</span>
+                ) : (
+                  <span className="text-xs text-muted-foreground/30">{i + 1}</span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <div className="text-center mt-1">
+          <span className="text-[10px] font-game text-muted-foreground">
+            {inventory.equippedItem ? ITEM_CONFIG[inventory.equippedItem].label : 'Mão vazia'}
+            {' • '}E craftar • V câmera
+          </span>
+        </div>
+      </div>
+
+      {/* Equipped item indicator */}
+      {inventory.equippedItem && (
+        <div className="absolute bottom-20 right-4">
+          <div className="bg-background/60 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-primary/30">
+            <span className="text-sm">{ITEM_CONFIG[inventory.equippedItem].emoji}</span>
+            <span className="text-xs font-game text-foreground ml-1">{ITEM_CONFIG[inventory.equippedItem].label}</span>
+          </div>
+        </div>
+      )}
 
       {/* Death screen */}
       {playerHealth <= 0 && (
@@ -103,15 +154,6 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
           })}
         </div>
       )}
-
-      {/* Instructions */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 text-center">
-        <div className="bg-background/60 backdrop-blur-sm rounded-lg px-4 py-2 border border-border/50">
-          <span className="text-xs font-game text-muted-foreground">
-            WASD mover • Mouse olhar • Clique atacar/quebrar • Espaço pular
-          </span>
-        </div>
-      </div>
 
       {/* Pointer lock prompt */}
       <PointerLockPrompt />

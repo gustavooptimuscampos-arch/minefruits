@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { PointerLockControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { BlockType, Fruit } from './types';
+import { BlockType, Fruit, ItemType, TOOL_DAMAGE } from './types';
 import { MobData } from './mobs';
 import { SkinData } from './skins';
 import { PlayerModel } from './PlayerModel';
@@ -18,9 +18,10 @@ interface PlayerProps {
   onMobHit: (id: string, damage: number) => void;
   sendPosition?: (position: [number, number, number], rotation: number, isMoving: boolean, health: number) => void;
   playerHealth?: number;
+  equippedItem?: ItemType | null;
 }
 
-export function Player({ blocks, fruits, mobs, skin, onBlockBreak, onFruitCollect, onMobHit, sendPosition, playerHealth = 100 }: PlayerProps) {
+export function Player({ blocks, fruits, mobs, skin, onBlockBreak, onFruitCollect, onMobHit, sendPosition, playerHealth = 100, equippedItem }: PlayerProps) {
   const { camera } = useThree();
   const controlsRef = useRef<any>(null);
   const velocity = useRef(new THREE.Vector3(0, 0, 0));
