@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Sky } from '@react-three/drei';
+import { Sky, Cloud } from '@react-three/drei';
 import { Terrain } from './Terrain';
 import { Player } from './Player';
 import { Fruits } from './Fruits';
@@ -28,7 +28,6 @@ export function GameCanvas() {
       }
     };
     document.addEventListener('pointerlockchange', onLockChange);
-    // Show prompt initially
     setTimeout(() => {
       const prompt = document.getElementById('pointer-lock-prompt');
       if (prompt) prompt.style.opacity = '1';
@@ -60,24 +59,50 @@ export function GameCanvas() {
   return (
     <div className="relative w-full h-screen bg-background">
       <Canvas
-        camera={{ fov: 75, near: 0.1, far: 200 }}
-        style={{ background: '#1a1a2e' }}
+        shadows
+        camera={{ fov: 70, near: 0.1, far: 250 }}
+        style={{ background: '#87CEEB' }}
+        gl={{ antialias: true, toneMapping: 3, toneMappingExposure: 1.1 }}
       >
         <Sky
-          sunPosition={[100, 20, 100]}
-          turbidity={8}
-          rayleigh={2}
-          mieCoefficient={0.005}
-          mieDirectionalG={0.8}
+          sunPosition={[100, 40, 60]}
+          turbidity={3}
+          rayleigh={0.5}
+          mieCoefficient={0.003}
+          mieDirectionalG={0.7}
         />
-        <fog attach="fog" args={['#2a2a4a', 40, 100]} />
-        <ambientLight intensity={0.5} />
+        <Cloud
+          opacity={0.4}
+          speed={0.2}
+          segments={20}
+          position={[0, 30, -20]}
+        />
+        <Cloud
+          opacity={0.3}
+          speed={0.15}
+          segments={15}
+          position={[-30, 35, 10]}
+        />
+        <fog attach="fog" args={['#b0d4f1', 60, 140]} />
+        
+        {/* Realistic lighting setup */}
+        <ambientLight intensity={0.35} color="#c4d7ed" />
         <directionalLight
-          position={[50, 50, 25]}
-          intensity={0.8}
+          position={[60, 80, 40]}
+          intensity={1.5}
           castShadow
+          shadow-mapSize-width={2048}
+          shadow-mapSize-height={2048}
+          shadow-camera-far={150}
+          shadow-camera-left={-40}
+          shadow-camera-right={40}
+          shadow-camera-top={40}
+          shadow-camera-bottom={-40}
+          shadow-bias={-0.001}
+          color="#FFF5E1"
         />
-        <hemisphereLight intensity={0.3} color="#87CEEB" groundColor="#2d5a1e" />
+        <hemisphereLight intensity={0.4} color="#87CEEB" groundColor="#3d6b2e" />
+        
         <Terrain blocks={blocks} />
         <Fruits fruits={fruits} />
         <Player

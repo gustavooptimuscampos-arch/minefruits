@@ -10,15 +10,15 @@ export interface Fruit {
 }
 
 export const BLOCK_COLORS: Record<BlockType, string> = {
-  grass: '#4a8c3f',
-  dirt: '#8B6914',
-  stone: '#707070',
-  wood: '#6B4226',
-  leaves: '#2E7D32',
-  sand: '#D4B96A',
-  water: '#1E90FF',
-  snow: '#F0F0F0',
-  flower: '#FF6B9D',
+  grass: '#5a9e4b',
+  dirt: '#7a5c2e',
+  stone: '#8a8a8a',
+  wood: '#5a3a1a',
+  leaves: '#3a8a30',
+  sand: '#d4c484',
+  water: '#2196F3',
+  snow: '#eef4f8',
+  flower: '#e85d8a',
 };
 
 export const FRUIT_CONFIG: Record<FruitType, { color: string; emissive: string; name: string; power: string }> = {
