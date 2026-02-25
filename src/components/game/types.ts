@@ -186,11 +186,41 @@ export const COIN_PACKS = [
   { id: 'pack_1500', coins: 1500, priceLabel: 'R$ 40,00', description: '1500 VoxelCoins (+500 bônus)' },
 ];
 
-export const SHOP_ITEMS = [
-  { id: 'skin_golden', name: '🏆 Skin Dourada', cost: 200, type: 'skin' as const },
-  { id: 'skin_neon', name: '💜 Skin Neon', cost: 300, type: 'skin' as const },
-  { id: 'double_xp', name: '⚡ 2x Pontos (30min)', cost: 50, type: 'boost' as const },
-  { id: 'extra_life', name: '❤️ Vida Extra', cost: 30, type: 'consumable' as const },
-  { id: 'diamond_pack', name: '💎 5 Diamantes', cost: 100, type: 'item' as const },
-  { id: 'torch_pack', name: '🔥 20 Tochas', cost: 20, type: 'item' as const },
+export type AccessoryType = 'hat' | 'cape' | 'aura' | 'body_color' | 'boost' | 'consumable' | 'item';
+
+export interface ShopItem {
+  id: string;
+  name: string;
+  cost: number;
+  type: AccessoryType;
+  // Visual data for accessories
+  color?: string;
+  emissive?: string;
+  description?: string;
+}
+
+export const SHOP_ITEMS: ShopItem[] = [
+  // Hats
+  { id: 'hat_crown', name: '👑 Coroa Dourada', cost: 150, type: 'hat', color: '#ffd700', description: 'Brilhe como um rei!' },
+  { id: 'hat_devil', name: '😈 Chifres de Demônio', cost: 120, type: 'hat', color: '#cc0000', description: 'Chifres vermelhos ameaçadores' },
+  { id: 'hat_angel', name: '😇 Auréola', cost: 100, type: 'hat', color: '#ffee88', emissive: '#ffcc00', description: 'Uma auréola brilhante' },
+  { id: 'hat_ninja', name: '🥷 Bandana Ninja', cost: 80, type: 'hat', color: '#1a1a1a', description: 'Estilo furtivo' },
+  // Capes
+  { id: 'cape_fire', name: '🔥 Capa de Fogo', cost: 200, type: 'cape', color: '#ff4500', emissive: '#ff2200', description: 'Capa flamejante!' },
+  { id: 'cape_ice', name: '❄️ Capa de Gelo', cost: 200, type: 'cape', color: '#00bcd4', emissive: '#006688', description: 'Fria como o inverno' },
+  { id: 'cape_shadow', name: '🌑 Capa das Sombras', cost: 250, type: 'cape', color: '#2a0a4a', emissive: '#4400aa', description: 'Misteriosa e escura' },
+  { id: 'cape_gold', name: '🏆 Capa Dourada', cost: 300, type: 'cape', color: '#ffd700', emissive: '#cc9900', description: 'Capa lendária!' },
+  // Auras
+  { id: 'aura_flame', name: '🔥 Aura de Fogo', cost: 350, type: 'aura', color: '#ff4500', emissive: '#ff2200', description: 'Partículas de fogo ao redor' },
+  { id: 'aura_electric', name: '⚡ Aura Elétrica', cost: 350, type: 'aura', color: '#ffdd00', emissive: '#ccaa00', description: 'Raios ao seu redor' },
+  { id: 'aura_dark', name: '💜 Aura Sombria', cost: 400, type: 'aura', color: '#8b00ff', emissive: '#4400aa', description: 'Energia das trevas' },
+  // Body Colors
+  { id: 'body_gold', name: '🏆 Corpo Dourado', cost: 500, type: 'body_color', color: '#ffd700', description: 'Skin toda dourada!' },
+  { id: 'body_neon', name: '💜 Corpo Neon', cost: 400, type: 'body_color', color: '#aa00ff', emissive: '#6600aa', description: 'Skin neon brilhante!' },
+  { id: 'body_diamond', name: '💎 Corpo Diamante', cost: 600, type: 'body_color', color: '#4ae0e0', emissive: '#228888', description: 'Pele de diamante!' },
+  // Consumables/Boosts
+  { id: 'double_xp', name: '⚡ 2x Pontos (30min)', cost: 50, type: 'boost', description: 'Dobra seus pontos!' },
+  { id: 'extra_life', name: '❤️ Vida Extra', cost: 30, type: 'consumable', description: 'Revive com vida cheia' },
+  { id: 'diamond_pack', name: '💎 5 Diamantes', cost: 100, type: 'item', description: '5 diamantes grátis' },
+  { id: 'torch_pack', name: '🔥 20 Tochas', cost: 20, type: 'item', description: '20 tochas prontas' },
 ];

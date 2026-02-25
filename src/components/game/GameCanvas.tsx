@@ -10,7 +10,7 @@ import { RemotePlayersRenderer } from './RemotePlayersRenderer';
 import { GameHUD } from './GameHUD';
 import { CraftingUI } from './CraftingUI';
 import { GameChat, ChatMessage } from './GameChat';
-import { FruitType, BlockType, BLOCK_DROPS, MINING_REQUIREMENTS, TOOL_DAMAGE, ItemType, GameCoin } from './types';
+import { FruitType, BlockType, BLOCK_DROPS, MINING_REQUIREMENTS, TOOL_DAMAGE, ItemType, GameCoin, AccessoryType, SHOP_ITEMS } from './types';
 import { MobData, spawnMobs } from './mobs';
 import { SkinData } from './skins';
 import { useMultiplayer } from './useMultiplayer';
@@ -33,6 +33,8 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
   const [coins, setCoins] = useState(initialCoins);
   const [voxelCoins, setVoxelCoins] = useState(0);
   const [shopOpen, setShopOpen] = useState(false);
+  const [ownedItems, setOwnedItems] = useState<string[]>([]);
+  const [equippedItems, setEquippedItems] = useState<Record<string, string | null>>({});
   const [score, setScore] = useState(0);
   const [collectedFruits, setCollectedFruits] = useState<FruitType[]>([]);
   const [blocksDestroyed, setBlocksDestroyed] = useState(0);
@@ -187,8 +189,52 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
   const handleShopPurchase = useCallback((itemId: string, cost: number): boolean => {
     if (voxelCoins < cost) return false;
     setVoxelCoins(v => v - cost);
+    setOwnedItems(prev => [...prev, itemId]);
+    // Auto-equip on purchase
+    const item = SHOP_ITEMS.find(i => i.id === itemId);
+    if (item && ['hat', 'cape', 'aura', 'body_color'].includes(item.type)) {
+      setEquippedItems(prev => ({ ...prev, [item.type]: itemId }));
+    }
     return true;
   }, [voxelCoins]);
+
+  const handleEquipItem = useCallback((itemId: string) => {
+    const item = SHOP_ITEMS.find(i => i.id === itemId);
+    if (item) setEquippedItems(prev => ({ ...prev, [item.type]: itemId }));
+  }, []);
+
+  const handleUnequipItem = useCallback((type: AccessoryType) => {
+    setEquippedItems(prev => ({ ...prev, [type]: null }));
+  }, []);
+
+  // Build effective skin with equipped accessories
+  const effectiveSkin = useMemo(() => {
+    let s = { ...skin };
+    const hatId = equippedItems['hat'];
+    const capeId = equippedItems['cape'];
+    const bodyId = equippedItems['body_color'];
+    if (hatId) {
+      const item = SHOP_ITEMS.find(i => i.id === hatId);
+      if (item?.color) s = { ...s, hat: item.color };
+    }
+    if (capeId) {
+      const item = SHOP_ITEMS.find(i => i.id === capeId);
+      if (item?.color) s = { ...s, cape: item.color };
+    }
+    if (bodyId) {
+      const item = SHOP_ITEMS.find(i => i.id === bodyId);
+      if (item?.color) s = { ...s, head: item.color, body: item.color, arms: item.color, legs: item.color };
+    }
+    return s;
+  }, [skin, equippedItems]);
+
+  // Get aura data for player model
+  const auraData = useMemo(() => {
+    const auraId = equippedItems['aura'];
+    if (!auraId) return null;
+    const item = SHOP_ITEMS.find(i => i.id === auraId);
+    return item ? { color: item.color!, emissive: item.emissive || item.color! } : null;
+  }, [equippedItems]);
 
   return (
     <div className="relative w-full h-screen bg-background">
@@ -234,7 +280,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
           fruits={fruits}
           mobs={mobs}
           coins={coins}
-          skin={skin}
+          skin={effectiveSkin}
           onBlockBreak={handleBlockBreak}
           onFruitCollect={handleFruitCollect}
           onCoinCollect={handleCoinCollect}
@@ -280,8 +326,12 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
       {shopOpen && (
         <CoinShop
           coins={voxelCoins}
+          ownedItems={ownedItems}
+          equippedItems={equippedItems}
           onClose={() => setShopOpen(false)}
           onPurchaseItem={handleShopPurchase}
+          onEquipItem={handleEquipItem}
+          onUnequipItem={handleUnequipItem}
         />
       )}
     </div>
