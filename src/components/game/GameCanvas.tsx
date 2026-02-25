@@ -9,7 +9,7 @@ import { FruitType } from './types';
 import { generateTerrain, generateFruits } from './terrainGenerator';
 
 export function GameCanvas() {
-  const initialBlocks = useMemo(() => generateTerrain(24), []);
+  const initialBlocks = useMemo(() => generateTerrain(32), []);
   const [blocks, setBlocks] = useState(initialBlocks);
   const initialFruits = useMemo(() => generateFruits(initialBlocks), [initialBlocks]);
   const [fruits, setFruits] = useState(initialFruits);

@@ -6,7 +6,7 @@ interface TerrainProps {
   blocks: Record<string, BlockType>;
 }
 
-const MAX_BLOCKS = 3000;
+const MAX_BLOCKS = 15000;
 
 export function Terrain({ blocks }: TerrainProps) {
   const meshRef = useRef<THREE.InstancedMesh>(null);
@@ -40,9 +40,11 @@ export function Terrain({ blocks }: TerrainProps) {
   }, [blockArray]);
 
   return (
-    <instancedMesh ref={meshRef} args={[undefined, undefined, MAX_BLOCKS]} castShadow receiveShadow>
-      <boxGeometry args={[1, 1, 1]} />
-      <meshLambertMaterial />
-    </instancedMesh>
+    <>
+      <instancedMesh ref={meshRef} args={[undefined, undefined, MAX_BLOCKS]} castShadow receiveShadow>
+        <boxGeometry args={[1, 1, 1]} />
+        <meshLambertMaterial vertexColors />
+      </instancedMesh>
+    </>
   );
 }
