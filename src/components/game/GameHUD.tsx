@@ -9,6 +9,7 @@ interface GameHUDProps {
   mobsKilled: number;
   roomCode?: string;
   playersOnline?: number;
+  voxelCoins?: number;
   inventory: {
     items: Item[];
     hotbar: (ItemType | null)[];
@@ -19,7 +20,7 @@ interface GameHUDProps {
   };
 }
 
-export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, isNight, mobsKilled, roomCode, playersOnline, inventory }: GameHUDProps) {
+export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0 }: GameHUDProps) {
   return (
     <div className="absolute inset-0 pointer-events-none select-none" style={{ zIndex: 10 }}>
       {/* Crosshair */}
@@ -28,10 +29,14 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 border border-foreground/30 rounded-full" />
       </div>
 
-      {/* Score */}
+      {/* Score & Coins */}
       <div className="absolute top-4 right-4 text-right">
         <div className="font-pixel text-primary text-lg text-glow-green">{score}</div>
         <div className="text-muted-foreground text-sm font-game mt-1">PONTOS</div>
+        <div className="mt-2 bg-secondary/20 backdrop-blur-sm rounded-lg px-3 py-1 border border-secondary/30">
+          <span className="font-pixel text-secondary text-sm">🪙 {voxelCoins}</span>
+          <span className="text-[10px] font-game text-muted-foreground ml-1">VoxelCoins</span>
+        </div>
       </div>
 
       {/* Stats */}
@@ -100,7 +105,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
         <div className="text-center mt-1">
           <span className="text-[10px] font-game text-muted-foreground">
             {inventory.equippedItem ? ITEM_CONFIG[inventory.equippedItem].label : 'Mão vazia'}
-            {' • '}E craftar • V câmera
+            {' • '}E craftar • B loja • V câmera
           </span>
         </div>
       </div>

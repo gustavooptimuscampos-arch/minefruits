@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { PointerLockControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { BlockType, Fruit, ItemType, TOOL_DAMAGE } from './types';
+import { BlockType, Fruit, ItemType, TOOL_DAMAGE, GameCoin } from './types';
 import { MobData } from './mobs';
 import { SkinData } from './skins';
 import { PlayerModel } from './PlayerModel';
@@ -12,16 +12,18 @@ interface PlayerProps {
   blocks: Record<string, BlockType>;
   fruits: Fruit[];
   mobs: MobData[];
+  coins?: GameCoin[];
   skin: SkinData;
   onBlockBreak: (key: string) => void;
   onFruitCollect: (id: string) => void;
+  onCoinCollect?: (id: string) => void;
   onMobHit: (id: string, damage: number) => void;
   sendPosition?: (position: [number, number, number], rotation: number, isMoving: boolean, health: number) => void;
   playerHealth?: number;
   equippedItem?: ItemType | null;
 }
 
-export function Player({ blocks, fruits, mobs, skin, onBlockBreak, onFruitCollect, onMobHit, sendPosition, playerHealth = 100, equippedItem }: PlayerProps) {
+export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, equippedItem }: PlayerProps) {
   const { camera } = useThree();
   const controlsRef = useRef<any>(null);
   const velocity = useRef(new THREE.Vector3(0, 0, 0));
@@ -200,6 +202,15 @@ export function Player({ blocks, fruits, mobs, skin, onBlockBreak, onFruitCollec
       const dist = playerPos.current.distanceTo(new THREE.Vector3(...fruit.position));
       if (dist < 1.8) {
         onFruitCollect(fruit.id);
+      }
+    });
+
+    // Coin collection
+    coins.forEach(coin => {
+      if (coin.collected) return;
+      const dist = playerPos.current.distanceTo(new THREE.Vector3(...coin.position));
+      if (dist < 1.5 && onCoinCollect) {
+        onCoinCollect(coin.id);
       }
     });
 

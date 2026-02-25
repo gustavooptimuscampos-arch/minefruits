@@ -170,3 +170,27 @@ export const FRUIT_CONFIG: Record<FruitType, { color: string; emissive: string; 
   dark: { color: '#8B00FF', emissive: '#4400AA', name: 'Yami Yami', power: '🌑 Trevas' },
   rubber: { color: '#FF69B4', emissive: '#CC3366', name: 'Gomu Gomu', power: '🩷 Borracha' },
 };
+
+// ─── VoxelCoin Currency ───
+export interface GameCoin {
+  id: string;
+  position: [number, number, number];
+  collected: boolean;
+  value: number; // in VoxelCoins
+}
+
+export const COIN_PACKS = [
+  { id: 'pack_100', coins: 100, priceLabel: 'R$ 4,00', description: '100 VoxelCoins' },
+  { id: 'pack_300', coins: 300, priceLabel: 'R$ 10,00', description: '300 VoxelCoins (+50 bônus)' },
+  { id: 'pack_700', coins: 700, priceLabel: 'R$ 20,00', description: '700 VoxelCoins (+200 bônus)' },
+  { id: 'pack_1500', coins: 1500, priceLabel: 'R$ 40,00', description: '1500 VoxelCoins (+500 bônus)' },
+];
+
+export const SHOP_ITEMS = [
+  { id: 'skin_golden', name: '🏆 Skin Dourada', cost: 200, type: 'skin' as const },
+  { id: 'skin_neon', name: '💜 Skin Neon', cost: 300, type: 'skin' as const },
+  { id: 'double_xp', name: '⚡ 2x Pontos (30min)', cost: 50, type: 'boost' as const },
+  { id: 'extra_life', name: '❤️ Vida Extra', cost: 30, type: 'consumable' as const },
+  { id: 'diamond_pack', name: '💎 5 Diamantes', cost: 100, type: 'item' as const },
+  { id: 'torch_pack', name: '🔥 20 Tochas', cost: 20, type: 'item' as const },
+];

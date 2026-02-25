@@ -10,12 +10,14 @@ import { RemotePlayersRenderer } from './RemotePlayersRenderer';
 import { GameHUD } from './GameHUD';
 import { CraftingUI } from './CraftingUI';
 import { GameChat, ChatMessage } from './GameChat';
-import { FruitType, BlockType, BLOCK_DROPS, MINING_REQUIREMENTS, TOOL_DAMAGE, ItemType } from './types';
+import { FruitType, BlockType, BLOCK_DROPS, MINING_REQUIREMENTS, TOOL_DAMAGE, ItemType, GameCoin } from './types';
 import { MobData, spawnMobs } from './mobs';
 import { SkinData } from './skins';
 import { useMultiplayer } from './useMultiplayer';
 import { useInventory } from './useInventory';
-import { generateTerrain, generateFruits } from './terrainGenerator';
+import { generateTerrain, generateFruits, generateCoins } from './terrainGenerator';
+import { CoinsRenderer } from './CoinsRenderer';
+import { CoinShop } from './CoinShop';
 
 interface GameCanvasProps {
   skin: SkinData;
@@ -27,6 +29,10 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
   const [blocks, setBlocks] = useState(initialBlocks);
   const initialFruits = useMemo(() => generateFruits(initialBlocks), [initialBlocks]);
   const [fruits, setFruits] = useState(initialFruits);
+  const initialCoins = useMemo(() => generateCoins(initialBlocks), [initialBlocks]);
+  const [coins, setCoins] = useState(initialCoins);
+  const [voxelCoins, setVoxelCoins] = useState(0);
+  const [shopOpen, setShopOpen] = useState(false);
   const [score, setScore] = useState(0);
   const [collectedFruits, setCollectedFruits] = useState<FruitType[]>([]);
   const [blocksDestroyed, setBlocksDestroyed] = useState(0);
@@ -86,12 +92,16 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'KeyE') {
         inventory.setCraftingOpen(prev => !prev);
-        // Release pointer lock when opening crafting
         if (!inventory.craftingOpen && document.pointerLockElement) {
           document.exitPointerLock();
         }
       }
-      // Hotbar selection with number keys
+      if (e.code === 'KeyB') {
+        setShopOpen(prev => !prev);
+        if (!shopOpen && document.pointerLockElement) {
+          document.exitPointerLock();
+        }
+      }
       if (e.code >= 'Digit1' && e.code <= 'Digit9') {
         const slot = parseInt(e.code.replace('Digit', '')) - 1;
         inventory.setSelectedSlot(slot);
@@ -148,6 +158,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
       if (newHealth <= 0) {
         setScore(s => s + (m.hostile ? 50 : 10));
         setMobsKilled(k => k + 1);
+        setVoxelCoins(c => c + (m.hostile ? 3 : 1));
         return { ...m, health: 0, dead: true };
       }
       return { ...m, health: newHealth };
@@ -163,6 +174,21 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
       return newHealth;
     });
   }, []);
+
+  const handleCoinCollect = useCallback((id: string) => {
+    const coin = coins.find(c => c.id === id);
+    if (coin && !coin.collected) {
+      setCoins(prev => prev.map(c => c.id === id ? { ...c, collected: true } : c));
+      setVoxelCoins(v => v + coin.value);
+      setScore(s => s + coin.value * 10);
+    }
+  }, [coins]);
+
+  const handleShopPurchase = useCallback((itemId: string, cost: number): boolean => {
+    if (voxelCoins < cost) return false;
+    setVoxelCoins(v => v - cost);
+    return true;
+  }, [voxelCoins]);
 
   return (
     <div className="relative w-full h-screen bg-background">
@@ -196,6 +222,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
 
         <Terrain blocks={blocks} />
         <Fruits fruits={fruits} />
+        <CoinsRenderer coins={coins} />
         <MobsRenderer
           mobs={mobs}
           blocks={blocks}
@@ -206,9 +233,11 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
           blocks={blocks}
           fruits={fruits}
           mobs={mobs}
+          coins={coins}
           skin={skin}
           onBlockBreak={handleBlockBreak}
           onFruitCollect={handleFruitCollect}
+          onCoinCollect={handleCoinCollect}
           onMobHit={handleMobHit}
           sendPosition={isMultiplayer ? mp.sendPosition : undefined}
           playerHealth={playerHealth}
@@ -226,6 +255,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
         roomCode={multiplayer?.roomCode}
         playersOnline={isMultiplayer ? mp.remotePlayers.length + 1 : undefined}
         inventory={inventory}
+        voxelCoins={voxelCoins}
       />
       {inventory.craftingOpen && (
         <CraftingUI
@@ -247,6 +277,13 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
           }]);
         }}
       />
+      {shopOpen && (
+        <CoinShop
+          coins={voxelCoins}
+          onClose={() => setShopOpen(false)}
+          onPurchaseItem={handleShopPurchase}
+        />
+      )}
     </div>
   );
 }
