@@ -48,9 +48,10 @@ export function Player({ blocks, fruits, mobs, skin, onBlockBreak, onFruitCollec
   const THIRD_PERSON_HEIGHT = 2;
 
   useEffect(() => {
-    camera.position.set(0, 8, 0);
-    playerPos.current.set(0, 8, 0);
-  }, [camera]);
+    const spawnY = getGroundHeight(0, 0, blocks) + PLAYER_HEIGHT + 1.5;
+    camera.position.set(0, spawnY, 0);
+    playerPos.current.set(0, spawnY, 0);
+  }, [camera, blocks]);
 
   // Toggle view with V key
   useEffect(() => {
@@ -171,7 +172,8 @@ export function Player({ blocks, fruits, mobs, skin, onBlockBreak, onFruitCollec
     }
 
     if (playerPos.current.y < -5) {
-      playerPos.current.set(0, 8, 0);
+      const respawnY = getGroundHeight(0, 0, currentBlocks) + PLAYER_HEIGHT + 1.5;
+      playerPos.current.set(0, respawnY, 0);
       velocity.current.set(0, 0, 0);
     }
 
