@@ -16,9 +16,11 @@ interface PlayerProps {
   onBlockBreak: (key: string) => void;
   onFruitCollect: (id: string) => void;
   onMobHit: (id: string, damage: number) => void;
+  sendPosition?: (position: [number, number, number], rotation: number, isMoving: boolean, health: number) => void;
+  playerHealth?: number;
 }
 
-export function Player({ blocks, fruits, mobs, skin, onBlockBreak, onFruitCollect, onMobHit }: PlayerProps) {
+export function Player({ blocks, fruits, mobs, skin, onBlockBreak, onFruitCollect, onMobHit, sendPosition, playerHealth = 100 }: PlayerProps) {
   const { camera } = useThree();
   const controlsRef = useRef<any>(null);
   const velocity = useRef(new THREE.Vector3(0, 0, 0));
@@ -197,6 +199,16 @@ export function Player({ blocks, fruits, mobs, skin, onBlockBreak, onFruitCollec
         onFruitCollect(fruit.id);
       }
     });
+
+    // Send position to multiplayer
+    if (sendPosition) {
+      sendPosition(
+        [playerPos.current.x, playerPos.current.y, playerPos.current.z],
+        playerYaw.current,
+        isMoving,
+        playerHealth,
+      );
+    }
   });
 
   return (

@@ -6,17 +6,20 @@ import { Player } from './Player';
 import { Fruits } from './Fruits';
 import { MobsRenderer } from './MobsRenderer';
 import { DayNightCycle } from './DayNightCycle';
+import { RemotePlayersRenderer } from './RemotePlayersRenderer';
 import { GameHUD } from './GameHUD';
 import { FruitType } from './types';
 import { MobData, spawnMobs } from './mobs';
 import { SkinData } from './skins';
+import { useMultiplayer } from './useMultiplayer';
 import { generateTerrain, generateFruits } from './terrainGenerator';
 
 interface GameCanvasProps {
   skin: SkinData;
+  multiplayer?: { roomCode: string; playerName: string };
 }
 
-export function GameCanvas({ skin }: GameCanvasProps) {
+export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
   const initialBlocks = useMemo(() => generateTerrain(32), []);
   const [blocks, setBlocks] = useState(initialBlocks);
   const initialFruits = useMemo(() => generateFruits(initialBlocks), [initialBlocks]);
@@ -30,6 +33,14 @@ export function GameCanvas({ skin }: GameCanvasProps) {
   const [timeOfDay, setTimeOfDay] = useState(0);
   const [mobs, setMobs] = useState<MobData[]>([]);
   const [mobsKilled, setMobsKilled] = useState(0);
+
+  // Multiplayer hook (only active if multiplayer prop is provided)
+  const mp = useMultiplayer({
+    roomCode: multiplayer?.roomCode || 'single',
+    playerName: multiplayer?.playerName || 'Player',
+    skin,
+  });
+  const isMultiplayer = !!multiplayer;
   const wasNightRef = useRef(false);
   const spawnedRef = useRef(false);
 
@@ -159,7 +170,10 @@ export function GameCanvas({ skin }: GameCanvasProps) {
           onBlockBreak={handleBlockBreak}
           onFruitCollect={handleFruitCollect}
           onMobHit={handleMobHit}
+          sendPosition={isMultiplayer ? mp.sendPosition : undefined}
+          playerHealth={playerHealth}
         />
+        {isMultiplayer && <RemotePlayersRenderer players={mp.remotePlayers} />}
       </Canvas>
       <GameHUD
         score={score}
@@ -168,6 +182,8 @@ export function GameCanvas({ skin }: GameCanvasProps) {
         playerHealth={playerHealth}
         isNight={isNight}
         mobsKilled={mobsKilled}
+        roomCode={multiplayer?.roomCode}
+        playersOnline={isMultiplayer ? mp.remotePlayers.length + 1 : undefined}
       />
     </div>
   );
