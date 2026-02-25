@@ -8,10 +8,12 @@ import { MobsRenderer } from './MobsRenderer';
 import { DayNightCycle } from './DayNightCycle';
 import { RemotePlayersRenderer } from './RemotePlayersRenderer';
 import { GameHUD } from './GameHUD';
-import { FruitType } from './types';
+import { CraftingUI } from './CraftingUI';
+import { FruitType, BlockType, BLOCK_DROPS, MINING_REQUIREMENTS, TOOL_DAMAGE, ItemType } from './types';
 import { MobData, spawnMobs } from './mobs';
 import { SkinData } from './skins';
 import { useMultiplayer } from './useMultiplayer';
+import { useInventory } from './useInventory';
 import { generateTerrain, generateFruits } from './terrainGenerator';
 
 interface GameCanvasProps {
@@ -34,7 +36,8 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
   const [mobs, setMobs] = useState<MobData[]>([]);
   const [mobsKilled, setMobsKilled] = useState(0);
 
-  // Multiplayer hook (only active if multiplayer prop is provided)
+  const inventory = useInventory();
+
   const mp = useMultiplayer({
     roomCode: multiplayer?.roomCode || 'single',
     playerName: multiplayer?.playerName || 'Player',
@@ -44,7 +47,6 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
   const wasNightRef = useRef(false);
   const spawnedRef = useRef(false);
 
-  // Spawn mobs when day/night changes
   useEffect(() => {
     if (!spawnedRef.current) {
       setMobs(spawnMobs(blocks, false));
@@ -57,7 +59,6 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
     if (night !== wasNightRef.current) {
       wasNightRef.current = night;
       setIsNight(night);
-      // Respawn mobs on transition
       setMobs(spawnMobs(blocks, night));
     }
   }, [blocks]);
@@ -67,9 +68,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
       const isLocked = !!document.pointerLockElement;
       setLocked(isLocked);
       const prompt = document.getElementById('pointer-lock-prompt');
-      if (prompt) {
-        prompt.style.opacity = isLocked ? '0' : '1';
-      }
+      if (prompt) prompt.style.opacity = isLocked ? '0' : '1';
     };
     document.addEventListener('pointerlockchange', onLockChange);
     setTimeout(() => {
@@ -79,7 +78,42 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
     return () => document.removeEventListener('pointerlockchange', onLockChange);
   }, []);
 
+  // Toggle crafting with E key
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.code === 'KeyE') {
+        inventory.setCraftingOpen(prev => !prev);
+        // Release pointer lock when opening crafting
+        if (!inventory.craftingOpen && document.pointerLockElement) {
+          document.exitPointerLock();
+        }
+      }
+      // Hotbar selection with number keys
+      if (e.code >= 'Digit1' && e.code <= 'Digit9') {
+        const slot = parseInt(e.code.replace('Digit', '')) - 1;
+        inventory.setSelectedSlot(slot);
+      }
+    };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [inventory.craftingOpen]);
+
   const handleBlockBreak = useCallback((key: string) => {
+    const blockType = blocks[key];
+    if (!blockType) return;
+
+    // Check mining requirements
+    const requirements = MINING_REQUIREMENTS[blockType];
+    if (requirements) {
+      const equipped = inventory.equippedItem;
+      if (!equipped || !requirements.includes(equipped)) {
+        return; // Can't mine this block
+      }
+    }
+
+    // Collect drop
+    inventory.collectBlock(blockType, inventory.equippedItem);
+
     setBlocks(prev => {
       const next = { ...prev };
       delete next[key];
@@ -87,7 +121,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
     });
     setScore(s => s + 10);
     setBlocksDestroyed(d => d + 1);
-  }, []);
+  }, [blocks, inventory]);
 
   const handleFruitCollect = useCallback((id: string) => {
     setFruits(prev =>
@@ -101,9 +135,13 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
   }, [fruits]);
 
   const handleMobHit = useCallback((id: string, damage: number) => {
+    // Apply weapon damage bonus
+    const weaponDamage = inventory.equippedItem ? (TOOL_DAMAGE[inventory.equippedItem] || 0) : 0;
+    const totalDamage = damage + weaponDamage;
+
     setMobs(prev => prev.map(m => {
       if (m.id !== id) return m;
-      const newHealth = m.health - damage;
+      const newHealth = m.health - totalDamage;
       if (newHealth <= 0) {
         setScore(s => s + (m.hostile ? 50 : 10));
         setMobsKilled(k => k + 1);
@@ -111,13 +149,12 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
       }
       return { ...m, health: newHealth };
     }));
-  }, []);
+  }, [inventory.equippedItem]);
 
   const handlePlayerDamage = useCallback((damage: number) => {
     setPlayerHealth(prev => {
       const newHealth = Math.max(0, prev - damage);
       if (newHealth <= 0) {
-        // Respawn
         setTimeout(() => setPlayerHealth(100), 1500);
       }
       return newHealth;
@@ -152,7 +189,6 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
         )}
         <fog attach="fog" args={[isNight ? '#0a0a2a' : '#b0d4f1', isNight ? 20 : 60, isNight ? 70 : 140]} />
 
-        {/* 30 min full cycle: speed = 1/1800 ≈ 0.000556 */}
         <DayNightCycle onTimeChange={handleTimeChange} speed={0.000556} />
 
         <Terrain blocks={blocks} />
@@ -173,6 +209,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
           onMobHit={handleMobHit}
           sendPosition={isMultiplayer ? mp.sendPosition : undefined}
           playerHealth={playerHealth}
+          equippedItem={inventory.equippedItem}
         />
         {isMultiplayer && <RemotePlayersRenderer players={mp.remotePlayers} />}
       </Canvas>
@@ -185,7 +222,16 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
         mobsKilled={mobsKilled}
         roomCode={multiplayer?.roomCode}
         playersOnline={isMultiplayer ? mp.remotePlayers.length + 1 : undefined}
+        inventory={inventory}
       />
+      {inventory.craftingOpen && (
+        <CraftingUI
+          items={inventory.items}
+          canCraft={inventory.canCraft}
+          onCraft={inventory.craft}
+          onClose={() => inventory.setCraftingOpen(false)}
+        />
+      )}
     </div>
   );
 }
