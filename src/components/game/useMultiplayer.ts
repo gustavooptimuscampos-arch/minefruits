@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { ChatMessage } from './GameChat';
 import { SkinData } from './skins';
 
 export interface RemotePlayer {
@@ -20,6 +21,7 @@ interface UseMultiplayerOptions {
 
 export function useMultiplayer({ roomCode, playerName, skin }: UseMultiplayerOptions) {
   const [remotePlayers, setRemotePlayers] = useState<RemotePlayer[]>([]);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [connected, setConnected] = useState(false);
   const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const myIdRef = useRef(`player-${Date.now()}-${Math.random().toString(36).slice(2)}`);
@@ -63,7 +65,41 @@ export function useMultiplayer({ roomCode, playerName, skin }: UseMultiplayerOpt
         });
       })
       .on('broadcast', { event: 'player_attack' }, ({ payload }) => {
-        // Handle remote player attacks (could trigger damage visuals)
+        // Handle remote player attacks
+      })
+      .on('broadcast', { event: 'chat_message' }, ({ payload }) => {
+        if (payload.senderId === myIdRef.current) return;
+        setChatMessages(prev => [...prev.slice(-49), {
+          id: payload.id,
+          sender: payload.sender,
+          text: payload.text,
+          timestamp: payload.timestamp,
+          isSystem: payload.isSystem,
+        }]);
+      })
+      .on('presence', { event: 'join' }, ({ newPresences }) => {
+        const joined = (newPresences as any[])[0];
+        if (joined) {
+          setChatMessages(prev => [...prev.slice(-49), {
+            id: `sys-${Date.now()}`,
+            sender: '',
+            text: `${joined.name || 'Alguém'} entrou na sala`,
+            timestamp: Date.now(),
+            isSystem: true,
+          }]);
+        }
+      })
+      .on('presence', { event: 'leave' }, ({ leftPresences }) => {
+        const left = (leftPresences as any[])[0];
+        if (left) {
+          setChatMessages(prev => [...prev.slice(-49), {
+            id: `sys-${Date.now()}`,
+            sender: '',
+            text: `${left.name || 'Alguém'} saiu da sala`,
+            timestamp: Date.now(),
+            isSystem: true,
+          }]);
+        }
       })
       .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
@@ -112,11 +148,32 @@ export function useMultiplayer({ roomCode, playerName, skin }: UseMultiplayerOpt
     });
   }, []);
 
+  const sendChatMessage = useCallback((text: string) => {
+    const msg: ChatMessage = {
+      id: `msg-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+      sender: playerName,
+      text,
+      timestamp: Date.now(),
+    };
+    // Add locally
+    setChatMessages(prev => [...prev.slice(-49), msg]);
+    // Broadcast
+    if (channelRef.current) {
+      channelRef.current.send({
+        type: 'broadcast',
+        event: 'chat_message',
+        payload: { ...msg, senderId: myIdRef.current },
+      });
+    }
+  }, [playerName]);
+
   return {
     remotePlayers,
     connected,
     sendPosition,
     sendAttack,
+    sendChatMessage,
+    chatMessages,
     myId: myIdRef.current,
   };
 }
