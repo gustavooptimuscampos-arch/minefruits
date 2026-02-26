@@ -56,9 +56,9 @@ export function DayNightCycle({ onTimeChange, speed = 0.015 }: DayNightCycleProp
       const isNight = sunY < 0;
       const dayFactor = Math.max(0, Math.min(1, (sunY + 10) / 90));
       if (isNight) {
-        scene.fog.color.setHSL(0.65, 0.3, 0.08);
-        scene.fog.near = 20;
-        scene.fog.far = 70;
+        scene.fog.color.setHSL(0.62, 0.22, 0.2);
+        scene.fog.near = 18;
+        scene.fog.far = 90;
       } else {
         scene.fog.color.setHSL(0.58, 0.3, 0.65 + dayFactor * 0.2);
         scene.fog.near = 60;
