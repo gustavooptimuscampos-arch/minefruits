@@ -84,7 +84,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
     document.addEventListener('pointerlockchange', onLockChange);
     setTimeout(() => {
       const prompt = document.getElementById('pointer-lock-prompt');
-      if (prompt) prompt.style.opacity = '1';
+      if (prompt) prompt.style.opacity = document.pointerLockElement ? '0' : '1';
     }, 500);
     return () => document.removeEventListener('pointerlockchange', onLockChange);
   }, []);
