@@ -18,10 +18,10 @@ export function StartScreen({ onStart, customSkins = [], onCreateSkin }: StartSc
     <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden bg-background">
       {/* Background */}
       <div
-        className="absolute inset-0 bg-cover bg-center opacity-30"
+        className="absolute inset-0 bg-cover bg-center opacity-70"
         style={{ backgroundImage: `url(${gameBg})` }}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-background/80" />
+      <div className="absolute inset-0 bg-gradient-to-t from-background/25 via-transparent to-background/20" />
 
       {/* Floating blocks */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
