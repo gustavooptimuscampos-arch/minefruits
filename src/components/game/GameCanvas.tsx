@@ -237,7 +237,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
   return (
     <div className="relative w-full h-screen" style={{ background: '#87CEEB' }}>
       <Canvas
-        shadows
+        shadows={false}
         camera={{ fov: 70, near: 0.1, far: 250 }}
         style={{ background: '#87CEEB' }}
         gl={{ antialias: true, toneMapping: 3, toneMappingExposure: 1.15 }}
