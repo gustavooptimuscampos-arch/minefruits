@@ -123,7 +123,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
 
       {/* Death screen */}
       {playerHealth <= 0 && (
-        <div className="absolute inset-0 flex items-center justify-center bg-red-900/50 backdrop-blur-sm">
+        <div className="absolute inset-0 flex items-center justify-center bg-destructive/20">
           <div className="text-center">
             <p className="font-pixel text-red-400 text-2xl mb-2">VOCÊ MORREU!</p>
             <p className="font-game text-muted-foreground text-sm">Renascendo...</p>
