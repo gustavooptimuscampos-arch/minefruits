@@ -100,19 +100,18 @@ export function Terrain({ blocks }: TerrainProps) {
     <>
       <instancedMesh ref={solidRef} args={[undefined, undefined, MAX_BLOCKS]} castShadow receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial vertexColors roughness={0.85} metalness={0.05} />
+        <meshBasicMaterial vertexColors toneMapped={false} />
       </instancedMesh>
 
       {water.length > 0 && (
         <instancedMesh ref={waterRef} args={[undefined, undefined, Math.max(water.length, 1)]}>
           <boxGeometry args={[1, 1, 1]} />
-          <meshStandardMaterial
+          <meshBasicMaterial
             vertexColors
             transparent
             opacity={0.55}
-            roughness={0.1}
-            metalness={0.3}
             color="#2196F3"
+            toneMapped={false}
           />
         </instancedMesh>
       )}
