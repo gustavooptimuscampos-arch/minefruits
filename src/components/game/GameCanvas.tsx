@@ -253,7 +253,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
           mieCoefficient={0.003}
           mieDirectionalG={0.7}
         />
-        {isNight && <Stars radius={100} depth={50} count={3000} factor={4} fade speed={1} />}
+        
         {!isNight && (
           <>
             <Cloud opacity={0.4} speed={0.2} segments={20} position={[0, 30, -20]} />
