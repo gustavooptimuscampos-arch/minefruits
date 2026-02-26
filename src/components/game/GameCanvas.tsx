@@ -243,6 +243,12 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
         gl={{ antialias: false, alpha: true }}
       >
         <color attach="background" args={['#87CEEB']} />
+        
+        {/* Debug: large green plane as ground fallback */}
+        <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow={false}>
+          <planeGeometry args={[200, 200]} />
+          <meshBasicMaterial color="#4CAF50" />
+        </mesh>
 
         <DayNightCycle onTimeChange={handleTimeChange} speed={0.000556} />
 
