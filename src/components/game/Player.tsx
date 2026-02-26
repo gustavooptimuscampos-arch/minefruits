@@ -175,7 +175,7 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
     }
 
     if (playerPos.current.y < -5) {
-      const respawnY = getGroundHeight(0, 0, currentBlocks) + PLAYER_HEIGHT + 1.2;
+      const respawnY = Math.max(getGroundHeight(0, 0, currentBlocks) + PLAYER_HEIGHT + 3, 20);
       playerPos.current.set(0, respawnY, 0);
       velocity.current.set(0, 0, 0);
     }
