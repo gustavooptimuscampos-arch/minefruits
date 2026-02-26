@@ -106,7 +106,7 @@ export function Terrain({ blocks }: TerrainProps) {
       </instancedMesh>
 
       {water.length > 0 && (
-        <instancedMesh ref={waterRef} args={[undefined, undefined, Math.max(water.length, 1)]} frustumCulled={false}>
+        <instancedMesh ref={waterRef} args={[undefined, undefined, Math.max(water.length, 1)]}>
           <boxGeometry args={[1, 1, 1]} />
           <meshBasicMaterial
             vertexColors
