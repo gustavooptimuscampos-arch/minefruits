@@ -77,10 +77,10 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
   const THIRD_PERSON_HEIGHT = 2;
 
   useEffect(() => {
-    const baseGroundY = getGroundHeight(0, 0, blocks);
-    const spawnY = Math.max(baseGroundY + PLAYER_HEIGHT + 3, 20);
-    camera.position.set(0, spawnY, 0);
-    playerPos.current.set(0, spawnY, 0);
+    const safeSpawn = findSafeSpawn(blocks);
+    const spawnY = safeSpawn.groundY + PLAYER_HEIGHT + 2;
+    camera.position.set(safeSpawn.x, spawnY, safeSpawn.z);
+    playerPos.current.set(safeSpawn.x, spawnY, safeSpawn.z);
   }, [camera, blocks]);
 
   // Toggle view with V key
