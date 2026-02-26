@@ -239,28 +239,10 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
       <Canvas
         shadows={false}
         camera={{ fov: 70, near: 0.1, far: 250 }}
-        style={{ background: '#87CEEB' }}
-        gl={{ antialias: false, toneMapping: 0 }}
+        style={{ background: 'transparent' }}
+        gl={{ antialias: false, alpha: true }}
       >
-        <Sky
-          sunPosition={[
-            Math.sin(timeOfDay * Math.PI * 2) * 100,
-            Math.cos(timeOfDay * Math.PI * 2) * 80,
-            60,
-          ]}
-          turbidity={isNight ? 20 : 3}
-          rayleigh={isNight ? 0 : 0.5}
-          mieCoefficient={0.003}
-          mieDirectionalG={0.7}
-        />
-        
-        {!isNight && (
-          <>
-            <Cloud opacity={0.4} speed={0.2} segments={20} position={[0, 30, -20]} />
-            <Cloud opacity={0.3} speed={0.15} segments={15} position={[-30, 35, 10]} />
-          </>
-        )}
-        <fog attach="fog" args={['#b8d8f4', 70, 180]} />
+        <color attach="background" args={['#87CEEB']} />
 
         <DayNightCycle onTimeChange={handleTimeChange} speed={0.000556} />
 
