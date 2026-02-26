@@ -18,9 +18,10 @@ interface GameHUDProps {
     equippedItem: ItemType | null;
     setHotbar: React.Dispatch<React.SetStateAction<(ItemType | null)[]>>;
   };
+  locked?: boolean;
 }
 
-export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0 }: GameHUDProps) {
+export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false }: GameHUDProps) {
   return (
     <div className="absolute inset-0 pointer-events-none select-none" style={{ zIndex: 10 }}>
       {/* Crosshair */}

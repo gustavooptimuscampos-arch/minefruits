@@ -76,16 +76,12 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
 
   useEffect(() => {
     const onLockChange = () => {
-      const isLocked = !!document.pointerLockElement;
-      setLocked(isLocked);
-      const prompt = document.getElementById('pointer-lock-prompt');
-      if (prompt) prompt.style.opacity = isLocked ? '0' : '1';
+      setLocked(!!document.pointerLockElement);
     };
+
     document.addEventListener('pointerlockchange', onLockChange);
-    setTimeout(() => {
-      const prompt = document.getElementById('pointer-lock-prompt');
-      if (prompt) prompt.style.opacity = document.pointerLockElement ? '0' : '1';
-    }, 500);
+    onLockChange();
+
     return () => document.removeEventListener('pointerlockchange', onLockChange);
   }, []);
 
