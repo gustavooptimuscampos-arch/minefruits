@@ -1,6 +1,6 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Sky, Cloud, Stars } from '@react-three/drei';
+import { Sky, Cloud } from '@react-three/drei';
 import { Terrain } from './Terrain';
 import { Player } from './Player';
 import { Fruits } from './Fruits';
@@ -25,7 +25,7 @@ interface GameCanvasProps {
 }
 
 export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
-  const initialBlocks = useMemo(() => generateTerrain(32), []);
+  const initialBlocks = useMemo(() => generateTerrain(20), []);
   const [blocks, setBlocks] = useState(initialBlocks);
   const initialFruits = useMemo(() => generateFruits(initialBlocks), [initialBlocks]);
   const [fruits, setFruits] = useState(initialFruits);
@@ -253,7 +253,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
           mieCoefficient={0.003}
           mieDirectionalG={0.7}
         />
-        {isNight && <Stars radius={100} depth={50} count={3000} factor={4} fade speed={1} />}
+        
         {!isNight && (
           <>
             <Cloud opacity={0.4} speed={0.2} segments={20} position={[0, 30, -20]} />
@@ -271,7 +271,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
           mobs={mobs}
           blocks={blocks}
           onMobHit={handleMobHit}
-          onPlayerDamage={() => {}}
+          onPlayerDamage={handlePlayerDamage}
         />
         <Player
           blocks={blocks}

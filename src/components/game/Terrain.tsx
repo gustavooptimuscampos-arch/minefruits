@@ -6,7 +6,7 @@ interface TerrainProps {
   blocks: Record<string, BlockType>;
 }
 
-const MAX_BLOCKS = 50000;
+const MAX_BLOCKS = 18000;
 
 // Only include blocks with at least one exposed face (not surrounded on all 6 sides)
 function getVisibleBlocks(blocks: Record<string, BlockType>) {
@@ -72,6 +72,7 @@ export function Terrain({ blocks }: TerrainProps) {
     }
 
     mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   }, [solid]);
 
@@ -93,6 +94,7 @@ export function Terrain({ blocks }: TerrainProps) {
     });
 
     mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   }, [water]);
 
