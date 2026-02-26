@@ -53,6 +53,7 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
     const baseGroundY = getGroundHeight(0, 0, blocks);
     const spawnY = Math.max(baseGroundY + PLAYER_HEIGHT + 1.5, 14);
     camera.position.set(0, spawnY, 0);
+    playerPos.current.set(0, spawnY, 0);
   }, [camera, blocks]);
 
   // Toggle view with V key
