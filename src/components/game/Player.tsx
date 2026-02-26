@@ -50,7 +50,8 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
   const THIRD_PERSON_HEIGHT = 2;
 
   useEffect(() => {
-    const spawnY = getGroundHeight(0, 0, blocks) + PLAYER_HEIGHT + 1.5;
+    const baseGroundY = getGroundHeight(0, 0, blocks);
+    const spawnY = Math.max(baseGroundY + PLAYER_HEIGHT + 1.5, 14);
     camera.position.set(0, spawnY, 0);
     playerPos.current.set(0, spawnY, 0);
   }, [camera, blocks]);
@@ -174,7 +175,7 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
     }
 
     if (playerPos.current.y < -5) {
-      const respawnY = getGroundHeight(0, 0, currentBlocks) + PLAYER_HEIGHT + 1.5;
+      const respawnY = Math.max(getGroundHeight(0, 0, currentBlocks) + PLAYER_HEIGHT + 1.5, 14);
       playerPos.current.set(0, respawnY, 0);
       velocity.current.set(0, 0, 0);
     }
