@@ -29,10 +29,13 @@ export function DayNightCycle({ onTimeChange, speed = 0.015 }: DayNightCycleProp
       
       // Sun intensity based on height
       const dayFactor = Math.max(0, Math.min(1, (sunY + 10) / 90));
-      sunRef.current.intensity = dayFactor * 1.6;
+      // Keep a minimum moonlight so the scene never becomes fully black
+      sunRef.current.intensity = 0.35 + dayFactor * 1.25;
       
-      // Sunset/sunrise color
-      if (dayFactor < 0.4 && dayFactor > 0) {
+      // Sunset/sunrise/day/night color
+      if (dayFactor === 0) {
+        sunRef.current.color.setHSL(0.62, 0.45, 0.62); // Moonlight blue
+      } else if (dayFactor < 0.4) {
         sunRef.current.color.setHSL(0.06, 0.9, 0.6); // Orange
       } else {
         sunRef.current.color.setHSL(0.1, 0.2, 0.95); // Warm white
