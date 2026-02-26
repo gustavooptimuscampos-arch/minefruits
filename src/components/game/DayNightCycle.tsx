@@ -29,10 +29,13 @@ export function DayNightCycle({ onTimeChange, speed = 0.015 }: DayNightCycleProp
       
       // Sun intensity based on height
       const dayFactor = Math.max(0, Math.min(1, (sunY + 10) / 90));
-      sunRef.current.intensity = dayFactor * 1.6;
+      // Keep a minimum moonlight so the scene never becomes fully black
+      sunRef.current.intensity = 0.35 + dayFactor * 1.25;
       
-      // Sunset/sunrise color
-      if (dayFactor < 0.4 && dayFactor > 0) {
+      // Sunset/sunrise/day/night color
+      if (dayFactor === 0) {
+        sunRef.current.color.setHSL(0.62, 0.45, 0.62); // Moonlight blue
+      } else if (dayFactor < 0.4) {
         sunRef.current.color.setHSL(0.06, 0.9, 0.6); // Orange
       } else {
         sunRef.current.color.setHSL(0.1, 0.2, 0.95); // Warm white
@@ -41,13 +44,13 @@ export function DayNightCycle({ onTimeChange, speed = 0.015 }: DayNightCycleProp
 
     if (ambientRef.current) {
       const isNight = sunY < 0;
-      ambientRef.current.intensity = isNight ? 0.2 : 0.35;
-      ambientRef.current.color.setHSL(isNight ? 0.62 : 0.6, isNight ? 0.25 : 0.2, isNight ? 0.45 : 0.8);
+      ambientRef.current.intensity = isNight ? 0.42 : 0.35;
+      ambientRef.current.color.setHSL(isNight ? 0.6 : 0.6, isNight ? 0.2 : 0.2, isNight ? 0.62 : 0.8);
     }
 
     if (hemiRef.current) {
       const isNight = sunY < 0;
-      hemiRef.current.intensity = isNight ? 0.25 : 0.4;
+      hemiRef.current.intensity = isNight ? 0.45 : 0.4;
     }
 
     // Update fog
@@ -56,9 +59,9 @@ export function DayNightCycle({ onTimeChange, speed = 0.015 }: DayNightCycleProp
       const isNight = sunY < 0;
       const dayFactor = Math.max(0, Math.min(1, (sunY + 10) / 90));
       if (isNight) {
-        scene.fog.color.setHSL(0.62, 0.22, 0.2);
-        scene.fog.near = 18;
-        scene.fog.far = 90;
+        scene.fog.color.setHSL(0.6, 0.18, 0.34);
+        scene.fog.near = 24;
+        scene.fog.far = 120;
       } else {
         scene.fog.color.setHSL(0.58, 0.3, 0.65 + dayFactor * 0.2);
         scene.fog.near = 60;
