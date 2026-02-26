@@ -18,9 +18,10 @@ interface GameHUDProps {
     equippedItem: ItemType | null;
     setHotbar: React.Dispatch<React.SetStateAction<(ItemType | null)[]>>;
   };
+  locked?: boolean;
 }
 
-export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0 }: GameHUDProps) {
+export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false }: GameHUDProps) {
   return (
     <div className="absolute inset-0 pointer-events-none select-none" style={{ zIndex: 10 }}>
       {/* Crosshair */}
@@ -161,14 +162,14 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
       )}
 
       {/* Pointer lock prompt */}
-      <PointerLockPrompt />
+      <PointerLockPrompt locked={locked} />
     </div>
   );
 }
 
-function PointerLockPrompt() {
+function PointerLockPrompt({ locked }: { locked: boolean }) {
   return (
-    <div id="pointer-lock-prompt" className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center justify-center transition-opacity pointer-events-none opacity-0">
+    <div id="pointer-lock-prompt" className={`absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center justify-center transition-opacity pointer-events-none ${locked ? 'opacity-0' : 'opacity-100'}`}>
       <div className="text-center bg-background/50 backdrop-blur-sm border border-border/50 rounded-lg px-3 py-1.5">
         <p className="font-pixel text-primary text-sm text-glow-green">CLIQUE PARA JOGAR</p>
       </div>

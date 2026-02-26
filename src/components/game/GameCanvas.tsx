@@ -76,16 +76,12 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
 
   useEffect(() => {
     const onLockChange = () => {
-      const isLocked = !!document.pointerLockElement;
-      setLocked(isLocked);
-      const prompt = document.getElementById('pointer-lock-prompt');
-      if (prompt) prompt.style.opacity = isLocked ? '0' : '1';
+      setLocked(!!document.pointerLockElement);
     };
+
     document.addEventListener('pointerlockchange', onLockChange);
-    setTimeout(() => {
-      const prompt = document.getElementById('pointer-lock-prompt');
-      if (prompt) prompt.style.opacity = document.pointerLockElement ? '0' : '1';
-    }, 500);
+    onLockChange();
+
     return () => document.removeEventListener('pointerlockchange', onLockChange);
   }, []);
 
@@ -241,8 +237,8 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
       <Canvas
         shadows
         camera={{ fov: 70, near: 0.1, far: 250 }}
-        style={{ background: isNight ? '#0a0a1a' : '#87CEEB' }}
-        gl={{ antialias: true, toneMapping: 3, toneMappingExposure: isNight ? 0.6 : 1.1 }}
+        style={{ background: isNight ? '#1a2338' : '#87CEEB' }}
+        gl={{ antialias: true, toneMapping: 3, toneMappingExposure: isNight ? 0.95 : 1.1 }}
       >
         <Sky
           sunPosition={[
@@ -302,6 +298,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
         playersOnline={isMultiplayer ? mp.remotePlayers.length + 1 : undefined}
         inventory={inventory}
         voxelCoins={voxelCoins}
+        locked={locked}
       />
       {inventory.craftingOpen && (
         <CraftingUI
