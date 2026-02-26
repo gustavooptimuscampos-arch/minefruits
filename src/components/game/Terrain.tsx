@@ -106,13 +106,12 @@ export function Terrain({ blocks }: TerrainProps) {
       {water.length > 0 && (
         <instancedMesh ref={waterRef} args={[undefined, undefined, Math.max(water.length, 1)]}>
           <boxGeometry args={[1, 1, 1]} />
-          <meshStandardMaterial
+          <meshBasicMaterial
             vertexColors
             transparent
             opacity={0.55}
-            roughness={0.1}
-            metalness={0.3}
             color="#2196F3"
+            toneMapped={false}
           />
         </instancedMesh>
       )}
