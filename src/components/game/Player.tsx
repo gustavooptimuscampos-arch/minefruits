@@ -228,13 +228,15 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
   return (
     <>
       <PointerLockControls ref={controlsRef} />
-      <PlayerModel
-        skin={skin}
-        position={playerPos.current}
-        rotation={playerYaw.current}
-        isMoving={isMovingRef.current}
-        isThirdPerson={thirdPerson}
-      />
+      {thirdPerson && (
+        <PlayerModel
+          skin={skin}
+          position={playerPos.current}
+          rotation={playerYaw.current}
+          isMoving={isMovingRef.current}
+          isThirdPerson={thirdPerson}
+        />
+      )}
     </>
   );
 }
