@@ -299,6 +299,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
         inventory={inventory}
         voxelCoins={voxelCoins}
         locked={locked}
+      />
       {inventory.craftingOpen && (
         <CraftingUI
           items={inventory.items}
