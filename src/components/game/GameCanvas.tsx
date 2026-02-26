@@ -25,7 +25,7 @@ interface GameCanvasProps {
 }
 
 export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
-  const initialBlocks = useMemo(() => generateTerrain(32), []);
+  const initialBlocks = useMemo(() => generateTerrain(20), []);
   const [blocks, setBlocks] = useState(initialBlocks);
   const initialFruits = useMemo(() => generateFruits(initialBlocks), [initialBlocks]);
   const [fruits, setFruits] = useState(initialFruits);
