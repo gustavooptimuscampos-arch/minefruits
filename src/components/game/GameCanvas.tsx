@@ -260,7 +260,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
             <Cloud opacity={0.3} speed={0.15} segments={15} position={[-30, 35, 10]} />
           </>
         )}
-        <fog attach="fog" args={[isNight ? '#0a0a2a' : '#b0d4f1', isNight ? 20 : 60, isNight ? 70 : 140]} />
+        <fog attach="fog" args={['#b8d8f4', 70, 180]} />
 
         <DayNightCycle onTimeChange={handleTimeChange} speed={0.000556} />
 

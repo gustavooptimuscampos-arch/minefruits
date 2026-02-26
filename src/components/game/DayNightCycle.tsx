@@ -53,20 +53,12 @@ export function DayNightCycle({ onTimeChange, speed = 0.015 }: DayNightCycleProp
       hemiRef.current.intensity = isNight ? 0.45 : 0.4;
     }
 
-    // Update fog
+    // Keep fog bright for gameplay visibility
     const scene = state.scene;
     if (scene.fog && scene.fog instanceof THREE.Fog) {
-      const isNight = sunY < 0;
-      const dayFactor = Math.max(0, Math.min(1, (sunY + 10) / 90));
-      if (isNight) {
-        scene.fog.color.setHSL(0.6, 0.18, 0.34);
-        scene.fog.near = 24;
-        scene.fog.far = 120;
-      } else {
-        scene.fog.color.setHSL(0.58, 0.3, 0.65 + dayFactor * 0.2);
-        scene.fog.near = 60;
-        scene.fog.far = 140;
-      }
+      scene.fog.color.setHSL(0.58, 0.28, 0.75);
+      scene.fog.near = 70;
+      scene.fog.far = 180;
     }
 
     const isNight = sunY < 0;
