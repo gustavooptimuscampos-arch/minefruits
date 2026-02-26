@@ -239,8 +239,8 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
       <Canvas
         shadows
         camera={{ fov: 70, near: 0.1, far: 250 }}
-        style={{ background: isNight ? '#1a2338' : '#87CEEB' }}
-        gl={{ antialias: true, toneMapping: 3, toneMappingExposure: isNight ? 0.95 : 1.1 }}
+        style={{ background: '#87CEEB' }}
+        gl={{ antialias: true, toneMapping: 3, toneMappingExposure: 1.15 }}
       >
         <Sky
           sunPosition={[
@@ -262,7 +262,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
         )}
         <fog attach="fog" args={[isNight ? '#0a0a2a' : '#b0d4f1', isNight ? 20 : 60, isNight ? 70 : 140]} />
 
-        <DayNightCycle onTimeChange={handleTimeChange} speed={0.000556} />
+        <DayNightCycle onTimeChange={handleTimeChange} speed={0} />
 
         <Terrain blocks={blocks} />
         <Fruits fruits={fruits} />
