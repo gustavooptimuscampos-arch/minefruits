@@ -271,7 +271,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
           mobs={mobs}
           blocks={blocks}
           onMobHit={handleMobHit}
-          onPlayerDamage={handlePlayerDamage}
+          onPlayerDamage={() => {}}
         />
         <Player
           blocks={blocks}
