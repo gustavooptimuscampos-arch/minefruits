@@ -27,30 +27,18 @@ export function DayNightCycle({ onTimeChange, speed = 0.015 }: DayNightCycleProp
     if (sunRef.current) {
       sunRef.current.position.set(sunX, Math.max(sunY, -20), 40);
       
-      // Sun intensity based on height
-      const dayFactor = Math.max(0, Math.min(1, (sunY + 10) / 90));
-      // Keep a minimum moonlight so the scene never becomes fully black
-      sunRef.current.intensity = 0.35 + dayFactor * 1.25;
-      
-      // Sunset/sunrise/day/night color
-      if (dayFactor === 0) {
-        sunRef.current.color.setHSL(0.62, 0.45, 0.62); // Moonlight blue
-      } else if (dayFactor < 0.4) {
-        sunRef.current.color.setHSL(0.06, 0.9, 0.6); // Orange
-      } else {
-        sunRef.current.color.setHSL(0.1, 0.2, 0.95); // Warm white
-      }
+      // Force high-visibility lighting at all times (no dark nights)
+      sunRef.current.intensity = 1.35;
+      sunRef.current.color.setHSL(0.1, 0.25, 0.92);
     }
 
     if (ambientRef.current) {
-      const isNight = sunY < 0;
-      ambientRef.current.intensity = isNight ? 0.42 : 0.35;
-      ambientRef.current.color.setHSL(isNight ? 0.6 : 0.6, isNight ? 0.2 : 0.2, isNight ? 0.62 : 0.8);
+      ambientRef.current.intensity = 0.72;
+      ambientRef.current.color.setHSL(0.58, 0.2, 0.82);
     }
 
     if (hemiRef.current) {
-      const isNight = sunY < 0;
-      hemiRef.current.intensity = isNight ? 0.45 : 0.4;
+      hemiRef.current.intensity = 0.8;
     }
 
     // Keep fog bright for gameplay visibility
@@ -61,8 +49,8 @@ export function DayNightCycle({ onTimeChange, speed = 0.015 }: DayNightCycleProp
       scene.fog.far = 180;
     }
 
-    const isNight = sunY < 0;
-    onTimeChange(t, isNight);
+    // Keep game logic in day mode to avoid dark-state side effects
+    onTimeChange(t, false);
   });
 
   return (
