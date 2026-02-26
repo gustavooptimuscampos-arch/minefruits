@@ -1,4 +1,4 @@
-import { useRef, useMemo, useEffect } from 'react';
+import { useMemo } from 'react';
 import * as THREE from 'three';
 import { BlockType, BLOCK_COLORS } from './types';
 
@@ -6,19 +6,17 @@ interface TerrainProps {
   blocks: Record<string, BlockType>;
 }
 
-const MAX_BLOCKS = 18000;
-
-// Only include blocks with at least one exposed face (not surrounded on all 6 sides)
-function getVisibleBlocks(blocks: Record<string, BlockType>) {
-  const solid: { position: THREE.Vector3; type: BlockType }[] = [];
-  const water: { position: THREE.Vector3 }[] = [];
+// Group blocks by type for efficient rendering
+function groupBlocksByType(blocks: Record<string, BlockType>) {
+  const groups: Record<string, THREE.Vector3[]> = {};
+  const water: THREE.Vector3[] = [];
   const neighbors = [[1,0,0],[-1,0,0],[0,1,0],[0,-1,0],[0,0,1],[0,0,-1]];
 
   Object.entries(blocks).forEach(([key, type]) => {
     const [x, y, z] = key.split(',').map(Number);
 
     if (type === 'water') {
-      water.push({ position: new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5) });
+      water.push(new THREE.Vector3(x + 0.5, y + 0.35, z + 0.5));
       return;
     }
 
@@ -34,88 +32,76 @@ function getVisibleBlocks(blocks: Record<string, BlockType>) {
     }
 
     if (exposed) {
-      solid.push({ position: new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5), type });
+      if (!groups[type]) groups[type] = [];
+      groups[type].push(new THREE.Vector3(x + 0.5, y + 0.5, z + 0.5));
     }
   });
 
-  return { solid, water };
+  return { groups, water };
+}
+
+function BlockGroup({ positions, color }: { positions: THREE.Vector3[]; color: string }) {
+  const geometry = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
+  
+  const mergedGeometry = useMemo(() => {
+    if (positions.length === 0) return null;
+    
+    const merged = new THREE.BufferGeometry();
+    const posArr: number[] = [];
+    const normalArr: number[] = [];
+    const indexArr: number[] = [];
+    
+    const basePos = geometry.attributes.position.array;
+    const baseNormal = geometry.attributes.normal.array;
+    const baseIndex = geometry.index!.array;
+    const vertCount = basePos.length / 3;
+    
+    for (let i = 0; i < positions.length; i++) {
+      const p = positions[i];
+      for (let v = 0; v < basePos.length; v += 3) {
+        posArr.push(basePos[v] + p.x, basePos[v+1] + p.y, basePos[v+2] + p.z);
+        normalArr.push(baseNormal[v], baseNormal[v+1], baseNormal[v+2]);
+      }
+      for (let j = 0; j < baseIndex.length; j++) {
+        indexArr.push(baseIndex[j] + i * vertCount);
+      }
+    }
+    
+    merged.setAttribute('position', new THREE.Float32BufferAttribute(posArr, 3));
+    merged.setAttribute('normal', new THREE.Float32BufferAttribute(normalArr, 3));
+    merged.setIndex(indexArr);
+    merged.computeBoundingSphere();
+    
+    return merged;
+  }, [positions, geometry]);
+
+  if (!mergedGeometry) return null;
+
+  return (
+    <mesh geometry={mergedGeometry} frustumCulled={false}>
+      <meshBasicMaterial color={color} />
+    </mesh>
+  );
 }
 
 export function Terrain({ blocks }: TerrainProps) {
-  const solidRef = useRef<THREE.InstancedMesh>(null);
-  const waterRef = useRef<THREE.InstancedMesh>(null);
-
-  const { solid, water } = useMemo(() => getVisibleBlocks(blocks), [blocks]);
-
-  useEffect(() => {
-    if (!solidRef.current) return;
-    const mesh = solidRef.current;
-    const dummy = new THREE.Object3D();
-    const color = new THREE.Color();
-
-    const count = Math.min(solid.length, MAX_BLOCKS);
-    mesh.count = count;
-
-    for (let i = 0; i < count; i++) {
-      const block = solid[i];
-      dummy.position.copy(block.position);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-
-      const baseColor = BLOCK_COLORS[block.type] || '#808080';
-      color.set(baseColor);
-      const variation = (Math.sin(block.position.x * 13.7 + block.position.z * 7.3) * 0.5 + 0.5) * 0.08 - 0.04;
-      color.r = Math.max(0, Math.min(1, color.r + variation));
-      color.g = Math.max(0, Math.min(1, color.g + variation * 0.8));
-      color.b = Math.max(0, Math.min(1, color.b + variation * 0.6));
-      mesh.setColorAt(i, color);
-    }
-
-    mesh.instanceMatrix.needsUpdate = true;
-    mesh.computeBoundingSphere();
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [solid]);
-
-  useEffect(() => {
-    if (!waterRef.current || water.length === 0) return;
-    const mesh = waterRef.current;
-    const dummy = new THREE.Object3D();
-    const color = new THREE.Color('#2196F3');
-
-    mesh.count = water.length;
-
-    water.forEach((block, i) => {
-      dummy.position.copy(block.position);
-      dummy.position.y -= 0.15;
-      dummy.scale.set(1, 0.7, 1);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
-      mesh.setColorAt(i, color);
-    });
-
-    mesh.instanceMatrix.needsUpdate = true;
-    mesh.computeBoundingSphere();
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-  }, [water]);
+  const { groups, water } = useMemo(() => groupBlocksByType(blocks), [blocks]);
 
   return (
     <>
-      <instancedMesh ref={solidRef} args={[undefined, undefined, MAX_BLOCKS]}>
-        <boxGeometry args={[1, 1, 1]} />
-        <meshBasicMaterial vertexColors toneMapped={false} />
-      </instancedMesh>
+      {Object.entries(groups).map(([type, positions]) => (
+        <BlockGroup
+          key={type}
+          positions={positions}
+          color={BLOCK_COLORS[type as BlockType] || '#808080'}
+        />
+      ))}
 
       {water.length > 0 && (
-        <instancedMesh ref={waterRef} args={[undefined, undefined, Math.max(water.length, 1)]}>
-          <boxGeometry args={[1, 1, 1]} />
-          <meshBasicMaterial
-            vertexColors
-            transparent
-            opacity={0.55}
-            color="#2196F3"
-            toneMapped={false}
-          />
-        </instancedMesh>
+        <BlockGroup
+          positions={water}
+          color="#42A5F5"
+        />
       )}
     </>
   );

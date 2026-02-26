@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Sky, Cloud } from '@react-three/drei';
+import { Cloud } from '@react-three/drei';
+import * as THREE from 'three';
 import { Terrain } from './Terrain';
 import { Player } from './Player';
 import { Fruits } from './Fruits';
@@ -238,29 +239,13 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
     <div className="relative w-full h-screen" style={{ background: '#87CEEB' }}>
       <Canvas
         shadows={false}
-        camera={{ fov: 70, near: 0.1, far: 250 }}
+        camera={{ fov: 70, near: 0.1, far: 250, position: [0, 20, 0] }}
         style={{ background: '#87CEEB' }}
-        gl={{ antialias: true, toneMapping: 3, toneMappingExposure: 1.15 }}
+        gl={{ antialias: false }}
+        onCreated={({ scene }) => {
+          scene.background = new THREE.Color('#87CEEB');
+        }}
       >
-        <Sky
-          sunPosition={[
-            Math.sin(timeOfDay * Math.PI * 2) * 100,
-            Math.cos(timeOfDay * Math.PI * 2) * 80,
-            60,
-          ]}
-          turbidity={isNight ? 20 : 3}
-          rayleigh={isNight ? 0 : 0.5}
-          mieCoefficient={0.003}
-          mieDirectionalG={0.7}
-        />
-        
-        {!isNight && (
-          <>
-            <Cloud opacity={0.4} speed={0.2} segments={20} position={[0, 30, -20]} />
-            <Cloud opacity={0.3} speed={0.15} segments={15} position={[-30, 35, 10]} />
-          </>
-        )}
-        <fog attach="fog" args={['#b8d8f4', 70, 180]} />
 
         <DayNightCycle onTimeChange={handleTimeChange} speed={0.000556} />
 
