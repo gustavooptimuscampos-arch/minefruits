@@ -47,7 +47,7 @@ export function DayNightCycle({ onTimeChange, speed = 0.015 }: DayNightCycleProp
 
     if (hemiRef.current) {
       const isNight = sunY < 0;
-      hemiRef.current.intensity = isNight ? 0.1 : 0.4;
+      hemiRef.current.intensity = isNight ? 0.25 : 0.4;
     }
 
     // Update fog
