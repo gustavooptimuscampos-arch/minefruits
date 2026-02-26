@@ -168,8 +168,8 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
 
 function PointerLockPrompt() {
   return (
-    <div id="pointer-lock-prompt" className="absolute inset-0 flex items-center justify-center bg-background/40 backdrop-blur-sm transition-opacity pointer-events-none opacity-0">
-      <div className="text-center">
+    <div id="pointer-lock-prompt" className="absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center justify-center transition-opacity pointer-events-none opacity-0">
+      <div className="text-center bg-background/50 backdrop-blur-sm border border-border/50 rounded-lg px-3 py-1.5">
         <p className="font-pixel text-primary text-sm text-glow-green">CLIQUE PARA JOGAR</p>
       </div>
     </div>
