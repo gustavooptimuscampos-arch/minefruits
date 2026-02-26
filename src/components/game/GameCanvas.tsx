@@ -235,7 +235,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
   }, [equippedItems]);
 
   return (
-    <div className="relative w-full h-screen bg-background">
+    <div className="relative w-full h-screen" style={{ background: '#87CEEB' }}>
       <Canvas
         shadows
         camera={{ fov: 70, near: 0.1, far: 250 }}
