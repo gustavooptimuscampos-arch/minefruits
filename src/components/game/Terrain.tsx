@@ -72,6 +72,7 @@ export function Terrain({ blocks }: TerrainProps) {
     }
 
     mesh.instanceMatrix.needsUpdate = true;
+    mesh.computeBoundingSphere();
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
   }, [solid]);
 
