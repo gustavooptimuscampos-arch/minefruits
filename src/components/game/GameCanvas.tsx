@@ -164,6 +164,8 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
   }, [inventory.equippedItem]);
 
   const handlePlayerDamage = useCallback((damage: number) => {
+    if (!locked) return;
+
     setPlayerHealth(prev => {
       const newHealth = Math.max(0, prev - damage);
       if (newHealth <= 0) {
@@ -171,7 +173,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
       }
       return newHealth;
     });
-  }, []);
+  }, [locked]);
 
   const handleCoinCollect = useCallback((id: string) => {
     const coin = coins.find(c => c.id === id);
