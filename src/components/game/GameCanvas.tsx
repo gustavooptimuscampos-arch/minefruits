@@ -1,6 +1,7 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Sky, Cloud } from '@react-three/drei';
+import { Cloud } from '@react-three/drei';
+import * as THREE from 'three';
 import { Terrain } from './Terrain';
 import { Player } from './Player';
 import { Fruits } from './Fruits';
