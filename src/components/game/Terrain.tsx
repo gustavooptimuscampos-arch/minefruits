@@ -100,7 +100,7 @@ export function Terrain({ blocks }: TerrainProps) {
 
   return (
     <>
-      <instancedMesh ref={solidRef} args={[undefined, undefined, MAX_BLOCKS]}>
+      <instancedMesh ref={solidRef} args={[undefined, undefined, MAX_BLOCKS]} frustumCulled={false}>
         <boxGeometry args={[1, 1, 1]} />
         <meshBasicMaterial vertexColors toneMapped={false} />
       </instancedMesh>
