@@ -240,7 +240,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
         shadows={false}
         camera={{ fov: 70, near: 0.1, far: 250 }}
         style={{ background: '#87CEEB' }}
-        gl={{ antialias: true, toneMapping: 3, toneMappingExposure: 1.15 }}
+        gl={{ antialias: false, toneMapping: 0 }}
       >
         <Sky
           sunPosition={[
