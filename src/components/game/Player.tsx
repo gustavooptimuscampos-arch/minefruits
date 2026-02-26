@@ -81,6 +81,8 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
     const spawnY = safeSpawn.groundY + PLAYER_HEIGHT + 2;
     camera.position.set(safeSpawn.x, spawnY, safeSpawn.z);
     playerPos.current.set(safeSpawn.x, spawnY, safeSpawn.z);
+    // Look slightly downward so terrain is visible immediately
+    camera.rotation.set(-0.4, 0, 0);
   }, [camera, blocks]);
 
   // Toggle view with V key
