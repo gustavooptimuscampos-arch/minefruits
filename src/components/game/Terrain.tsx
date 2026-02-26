@@ -100,7 +100,7 @@ export function Terrain({ blocks }: TerrainProps) {
     <>
       <instancedMesh ref={solidRef} args={[undefined, undefined, MAX_BLOCKS]} castShadow receiveShadow>
         <boxGeometry args={[1, 1, 1]} />
-        <meshStandardMaterial vertexColors roughness={0.85} metalness={0.05} />
+        <meshBasicMaterial vertexColors toneMapped={false} />
       </instancedMesh>
 
       {water.length > 0 && (
