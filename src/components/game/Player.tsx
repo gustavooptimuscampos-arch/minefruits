@@ -23,6 +23,33 @@ interface PlayerProps {
   equippedItem?: ItemType | null;
 }
 
+const UNSAFE_SPAWN_SURFACES: BlockType[] = ['water', 'leaves', 'wood', 'flower'];
+
+function findSafeSpawn(blocks: Record<string, BlockType>) {
+  for (let r = 0; r <= 12; r++) {
+    for (let x = -r; x <= r; x++) {
+      for (let z = -r; z <= r; z++) {
+        if (Math.abs(x) !== r && Math.abs(z) !== r) continue;
+
+        const groundY = getGroundHeight(x, z, blocks);
+        const surfaceKey = `${x},${Math.max(0, groundY - 1)},${z}`;
+        const surface = blocks[surfaceKey];
+
+        if (!surface || UNSAFE_SPAWN_SURFACES.includes(surface)) continue;
+
+        const head1 = blocks[`${x},${Math.floor(groundY + 1)},${z}`];
+        const head2 = blocks[`${x},${Math.floor(groundY + 2)},${z}`];
+        if (head1 || head2) continue;
+
+        return { x: x + 0.5, z: z + 0.5, groundY };
+      }
+    }
+  }
+
+  const fallbackGround = getGroundHeight(0, 0, blocks);
+  return { x: 0.5, z: 0.5, groundY: fallbackGround };
+}
+
 export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, equippedItem }: PlayerProps) {
   const { camera } = useThree();
   const controlsRef = useRef<any>(null);
