@@ -238,11 +238,13 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
     <div className="relative w-full h-screen" style={{ background: '#87CEEB' }}>
       <Canvas
         shadows={false}
-        camera={{ fov: 70, near: 0.1, far: 250 }}
-        style={{ background: 'transparent' }}
-        gl={{ antialias: false, alpha: true }}
+        camera={{ fov: 70, near: 0.1, far: 250, position: [0, 20, 0] }}
+        style={{ background: '#87CEEB' }}
+        gl={{ antialias: false }}
+        onCreated={({ scene }) => {
+          scene.background = new THREE.Color('#87CEEB');
+        }}
       >
-        <color attach="background" args={['#87CEEB']} />
         
         {/* Debug: large green plane as ground fallback */}
         <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0, 0]} receiveShadow={false}>
