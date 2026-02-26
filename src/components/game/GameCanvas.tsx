@@ -262,7 +262,7 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
         )}
         <fog attach="fog" args={[isNight ? '#0a0a2a' : '#b0d4f1', isNight ? 20 : 60, isNight ? 70 : 140]} />
 
-        <DayNightCycle onTimeChange={handleTimeChange} speed={0.000556} />
+        <DayNightCycle onTimeChange={handleTimeChange} speed={0} />
 
         <Terrain blocks={blocks} />
         <Fruits fruits={fruits} />
