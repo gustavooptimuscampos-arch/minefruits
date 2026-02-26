@@ -41,8 +41,8 @@ export function DayNightCycle({ onTimeChange, speed = 0.015 }: DayNightCycleProp
 
     if (ambientRef.current) {
       const isNight = sunY < 0;
-      ambientRef.current.intensity = isNight ? 0.08 : 0.35;
-      ambientRef.current.color.setHSL(isNight ? 0.65 : 0.6, isNight ? 0.3 : 0.2, isNight ? 0.3 : 0.8);
+      ambientRef.current.intensity = isNight ? 0.2 : 0.35;
+      ambientRef.current.color.setHSL(isNight ? 0.62 : 0.6, isNight ? 0.25 : 0.2, isNight ? 0.45 : 0.8);
     }
 
     if (hemiRef.current) {
