@@ -5,6 +5,7 @@ interface GameHUDProps {
   collectedFruits: FruitType[];
   blocksDestroyed: number;
   playerHealth: number;
+  hunger: number;
   isNight: boolean;
   mobsKilled: number;
   roomCode?: string;
@@ -19,9 +20,10 @@ interface GameHUDProps {
     setHotbar: React.Dispatch<React.SetStateAction<(ItemType | null)[]>>;
   };
   locked?: boolean;
+  onExit?: () => void;
 }
 
-export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false }: GameHUDProps) {
+export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, hunger, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false, onExit }: GameHUDProps) {
   return (
     <div className="absolute inset-0 pointer-events-none select-none" style={{ zIndex: 10 }}>
       {/* Crosshair */}
@@ -29,6 +31,18 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
         <div className="w-1.5 h-1.5 rounded-full bg-foreground/80" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 border border-foreground/30 rounded-full" />
       </div>
+
+      {/* Exit button */}
+      {onExit && (
+        <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-auto">
+          <button
+            onClick={onExit}
+            className="font-pixel text-[10px] px-3 py-1 bg-destructive/80 text-destructive-foreground rounded hover:bg-destructive transition-colors"
+          >
+            ESC Sair
+          </button>
+        </div>
+      )}
 
       {/* Score & Coins */}
       <div className="absolute top-4 right-4 text-right">
@@ -59,21 +73,36 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
         </div>
       </div>
 
-      {/* Health bar */}
-      <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-48">
+      {/* Health + Hunger bars */}
+      <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-52 space-y-1">
+        {/* Health */}
         <div className="bg-background/60 backdrop-blur-sm rounded-full border border-border/50 p-1">
           <div className="flex items-center gap-2 px-2">
             <span className="text-xs font-game">❤️</span>
             <div className="flex-1 h-3 bg-muted/50 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-300"
+              <div className="h-full rounded-full transition-all duration-300"
                 style={{
                   width: `${playerHealth}%`,
                   backgroundColor: playerHealth > 60 ? '#4CAF50' : playerHealth > 30 ? '#FF9800' : '#f44336',
                 }}
               />
             </div>
-            <span className="text-xs font-game text-foreground">{playerHealth}</span>
+            <span className="text-xs font-game text-foreground">{Math.round(playerHealth)}</span>
+          </div>
+        </div>
+        {/* Hunger */}
+        <div className="bg-background/60 backdrop-blur-sm rounded-full border border-border/50 p-1">
+          <div className="flex items-center gap-2 px-2">
+            <span className="text-xs font-game">🍗</span>
+            <div className="flex-1 h-3 bg-muted/50 rounded-full overflow-hidden">
+              <div className="h-full rounded-full transition-all duration-300"
+                style={{
+                  width: `${hunger}%`,
+                  backgroundColor: hunger > 60 ? '#8B4513' : hunger > 30 ? '#FF9800' : '#f44336',
+                }}
+              />
+            </div>
+            <span className="text-xs font-game text-foreground">{Math.round(hunger)}</span>
           </div>
         </div>
       </div>
@@ -85,20 +114,12 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
             const isSelected = inventory.selectedSlot === i;
             const config = item ? ITEM_CONFIG[item] : null;
             return (
-              <button
-                key={i}
-                onClick={() => inventory.setSelectedSlot(i)}
+              <button key={i} onClick={() => inventory.setSelectedSlot(i)}
                 className={`w-10 h-10 rounded flex items-center justify-center text-lg transition-all ${
-                  isSelected
-                    ? 'bg-primary/30 border-2 border-primary scale-110'
-                    : 'bg-muted/30 border border-border/30 hover:bg-muted/50'
+                  isSelected ? 'bg-primary/30 border-2 border-primary scale-110' : 'bg-muted/30 border border-border/30 hover:bg-muted/50'
                 }`}
               >
-                {config ? (
-                  <span title={config.label}>{config.emoji}</span>
-                ) : (
-                  <span className="text-xs text-muted-foreground/30">{i + 1}</span>
-                )}
+                {config ? <span title={config.label}>{config.emoji}</span> : <span className="text-xs text-muted-foreground/30">{i + 1}</span>}
               </button>
             );
           })}
@@ -106,7 +127,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
         <div className="text-center mt-1">
           <span className="text-[10px] font-game text-muted-foreground">
             {inventory.equippedItem ? ITEM_CONFIG[inventory.equippedItem].label : 'Mão vazia'}
-            {' • '}E craftar • B loja • V câmera
+            {' • '}E craftar • B loja • R ranking • V câmera
           </span>
         </div>
       </div>
@@ -131,6 +152,15 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
         </div>
       )}
 
+      {/* Hunger warning */}
+      {hunger <= 20 && hunger > 0 && (
+        <div className="absolute top-16 left-1/2 -translate-x-1/2">
+          <div className="bg-orange-900/40 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-orange-500/30">
+            <span className="text-xs font-game text-orange-300 animate-pulse">🍗 Fome! Colete frutas ou mate animais!</span>
+          </div>
+        </div>
+      )}
+
       {/* Night warning */}
       {isNight && (
         <div className="absolute top-16 right-4">
@@ -146,15 +176,9 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
           {collectedFruits.map((type, i) => {
             const config = FRUIT_CONFIG[type];
             return (
-              <div
-                key={i}
-                className="flex items-center gap-2 bg-background/60 backdrop-blur-sm rounded-full px-3 py-1 border border-border/50"
-              >
+              <div key={i} className="flex items-center gap-2 bg-background/60 backdrop-blur-sm rounded-full px-3 py-1 border border-border/50">
                 <span className="text-xs font-game text-muted-foreground">{config.power}</span>
-                <div
-                  className="w-4 h-4 rounded-full"
-                  style={{ backgroundColor: config.color, boxShadow: `0 0 8px ${config.color}` }}
-                />
+                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: config.color, boxShadow: `0 0 8px ${config.color}` }} />
               </div>
             );
           })}
@@ -169,7 +193,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
 
 function PointerLockPrompt({ locked }: { locked: boolean }) {
   return (
-    <div id="pointer-lock-prompt" className={`absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center justify-center transition-opacity pointer-events-none ${locked ? 'opacity-0' : 'opacity-100'}`}>
+    <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center justify-center transition-opacity pointer-events-none ${locked ? 'opacity-0' : 'opacity-100'}`}>
       <div className="text-center bg-background/50 backdrop-blur-sm border border-border/50 rounded-lg px-3 py-1.5">
         <p className="font-pixel text-primary text-sm text-glow-green">CLIQUE PARA JOGAR</p>
       </div>
