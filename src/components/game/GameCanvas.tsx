@@ -1,6 +1,5 @@
 import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { Canvas } from '@react-three/fiber';
-import { Cloud } from '@react-three/drei';
 import * as THREE from 'three';
 import { Terrain } from './Terrain';
 import { Player } from './Player';
@@ -11,21 +10,23 @@ import { RemotePlayersRenderer } from './RemotePlayersRenderer';
 import { GameHUD } from './GameHUD';
 import { CraftingUI } from './CraftingUI';
 import { GameChat, ChatMessage } from './GameChat';
-import { FruitType, BlockType, BLOCK_DROPS, MINING_REQUIREMENTS, TOOL_DAMAGE, ItemType, GameCoin, AccessoryType, SHOP_ITEMS } from './types';
-import { MobData, spawnMobs } from './mobs';
+import { FruitType, BlockType, BLOCK_DROPS, MINING_REQUIREMENTS, TOOL_DAMAGE, ItemType, GameCoin, AccessoryType, SHOP_ITEMS, FRUIT_CONFIG } from './types';
+import { MobData, MobType, MOB_CONFIG, spawnMobs } from './mobs';
 import { SkinData } from './skins';
 import { useMultiplayer } from './useMultiplayer';
 import { useInventory } from './useInventory';
 import { generateTerrain, generateFruits, generateCoins } from './terrainGenerator';
 import { CoinsRenderer } from './CoinsRenderer';
 import { CoinShop } from './CoinShop';
+import { MOB_POINTS, FRUIT_POINTS, FRUIT_HUNGER, ScoreEntry } from './scoring';
 
 interface GameCanvasProps {
   skin: SkinData;
   multiplayer?: { roomCode: string; playerName: string };
+  onExit?: () => void;
 }
 
-export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
+export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
   const initialBlocks = useMemo(() => generateTerrain(20), []);
   const [blocks, setBlocks] = useState(initialBlocks);
   const initialFruits = useMemo(() => generateFruits(initialBlocks), [initialBlocks]);
@@ -41,11 +42,14 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
   const [blocksDestroyed, setBlocksDestroyed] = useState(0);
   const [locked, setLocked] = useState(false);
   const [playerHealth, setPlayerHealth] = useState(100);
+  const [hunger, setHunger] = useState(100);
   const [isNight, setIsNight] = useState(false);
   const [timeOfDay, setTimeOfDay] = useState(0);
   const [mobs, setMobs] = useState<MobData[]>([]);
   const [mobsKilled, setMobsKilled] = useState(0);
   const [localChat, setLocalChat] = useState<ChatMessage[]>([]);
+  const [showRanking, setShowRanking] = useState(false);
+  const [scoreLog, setScoreLog] = useState<ScoreEntry[]>([]);
 
   const inventory = useInventory();
 
@@ -58,6 +62,21 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
   const playerName = multiplayer?.playerName || 'Player';
   const wasNightRef = useRef(false);
   const spawnedRef = useRef(false);
+
+  // Hunger decreases over time
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setHunger(prev => {
+        const next = Math.max(0, prev - 0.5);
+        if (next <= 0) {
+          // Starving: lose health
+          setPlayerHealth(h => Math.max(0, h - 1));
+        }
+        return next;
+      });
+    }, 2000);
+    return () => clearInterval(interval);
+  }, []);
 
   useEffect(() => {
     if (!spawnedRef.current) {
@@ -76,78 +95,72 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
   }, [blocks]);
 
   useEffect(() => {
-    const onLockChange = () => {
-      setLocked(!!document.pointerLockElement);
-    };
-
+    const onLockChange = () => setLocked(!!document.pointerLockElement);
     document.addEventListener('pointerlockchange', onLockChange);
     onLockChange();
-
     return () => document.removeEventListener('pointerlockchange', onLockChange);
   }, []);
 
-  // Toggle crafting with E key
+  // Key bindings
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.code === 'KeyE') {
         inventory.setCraftingOpen(prev => !prev);
-        if (!inventory.craftingOpen && document.pointerLockElement) {
-          document.exitPointerLock();
-        }
+        if (!inventory.craftingOpen && document.pointerLockElement) document.exitPointerLock();
       }
       if (e.code === 'KeyB') {
         setShopOpen(prev => !prev);
-        if (!shopOpen && document.pointerLockElement) {
-          document.exitPointerLock();
-        }
+        if (!shopOpen && document.pointerLockElement) document.exitPointerLock();
+      }
+      if (e.code === 'KeyR') {
+        setShowRanking(prev => !prev);
+        if (document.pointerLockElement) document.exitPointerLock();
+      }
+      if (e.code === 'Escape' && !inventory.craftingOpen && !shopOpen && !showRanking) {
+        if (onExit) onExit();
       }
       if (e.code >= 'Digit1' && e.code <= 'Digit9') {
-        const slot = parseInt(e.code.replace('Digit', '')) - 1;
-        inventory.setSelectedSlot(slot);
+        inventory.setSelectedSlot(parseInt(e.code.replace('Digit', '')) - 1);
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [inventory.craftingOpen]);
+  }, [inventory.craftingOpen, shopOpen, showRanking, onExit]);
 
   const handleBlockBreak = useCallback((key: string) => {
     const blockType = blocks[key];
     if (!blockType) return;
-
-    // Check mining requirements
     const requirements = MINING_REQUIREMENTS[blockType];
     if (requirements) {
       const equipped = inventory.equippedItem;
-      if (!equipped || !requirements.includes(equipped)) {
-        return; // Can't mine this block
-      }
+      if (!equipped || !requirements.includes(equipped)) return;
     }
-
-    // Collect drop
     inventory.collectBlock(blockType, inventory.equippedItem);
-
-    setBlocks(prev => {
-      const next = { ...prev };
-      delete next[key];
-      return next;
-    });
+    setBlocks(prev => { const next = { ...prev }; delete next[key]; return next; });
     setScore(s => s + 10);
     setBlocksDestroyed(d => d + 1);
   }, [blocks, inventory]);
 
   const handleFruitCollect = useCallback((id: string) => {
-    setFruits(prev =>
-      prev.map(f => f.id === id ? { ...f, collected: true } : f)
-    );
+    setFruits(prev => prev.map(f => f.id === id ? { ...f, collected: true } : f));
     const fruit = fruits.find(f => f.id === id);
     if (fruit && !fruit.collected) {
+      const pts = FRUIT_POINTS[fruit.type];
+      const hungerRestore = FRUIT_HUNGER[fruit.type];
       setCollectedFruits(prev => [...prev, fruit.type]);
-      setScore(s => s + 100);
+      setScore(s => s + pts);
+      setHunger(h => Math.min(100, h + hungerRestore));
+
+      const config = FRUIT_CONFIG[fruit.type];
+      setScoreLog(prev => {
+        const existing = prev.find(e => e.type === 'fruit' && e.name === config.name);
+        if (existing) return prev.map(e => e === existing ? { ...e, count: e.count + 1, points: e.points + pts } : e);
+        return [...prev, { type: 'fruit', name: config.name, emoji: config.power.split(' ')[0], points: pts, count: 1 }];
+      });
     }
   }, [fruits]);
 
   const handleMobHit = useCallback((id: string, damage: number) => {
-    // Apply weapon damage bonus
     const weaponDamage = inventory.equippedItem ? (TOOL_DAMAGE[inventory.equippedItem] || 0) : 0;
     const totalDamage = damage + weaponDamage;
 
@@ -155,9 +168,24 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
       if (m.id !== id) return m;
       const newHealth = m.health - totalDamage;
       if (newHealth <= 0) {
-        setScore(s => s + (m.hostile ? 50 : 10));
+        const pts = MOB_POINTS[m.type];
+        setScore(s => s + pts);
         setMobsKilled(k => k + 1);
         setVoxelCoins(c => c + (m.hostile ? 3 : 1));
+
+        // Log to ranking
+        const config = MOB_CONFIG[m.type];
+        setScoreLog(prev => {
+          const existing = prev.find(e => e.type === 'mob' && e.name === config.label);
+          if (existing) return prev.map(e => e === existing ? { ...e, count: e.count + 1, points: e.points + pts } : e);
+          return [...prev, { type: 'mob', name: config.label, emoji: config.label.split(' ')[0], points: pts, count: 1 }];
+        });
+
+        // Animals drop food (restore hunger)
+        if (!m.hostile) {
+          setHunger(h => Math.min(100, h + 15));
+        }
+
         return { ...m, health: 0, dead: true };
       }
       return { ...m, health: newHealth };
@@ -166,11 +194,10 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
 
   const handlePlayerDamage = useCallback((damage: number) => {
     if (!locked) return;
-
     setPlayerHealth(prev => {
       const newHealth = Math.max(0, prev - damage);
       if (newHealth <= 0) {
-        setTimeout(() => setPlayerHealth(100), 1500);
+        setTimeout(() => { setPlayerHealth(100); setHunger(80); }, 1500);
       }
       return newHealth;
     });
@@ -189,7 +216,6 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
     if (voxelCoins < cost) return false;
     setVoxelCoins(v => v - cost);
     setOwnedItems(prev => [...prev, itemId]);
-    // Auto-equip on purchase
     const item = SHOP_ITEMS.find(i => i.id === itemId);
     if (item && ['hat', 'cape', 'aura', 'body_color'].includes(item.type)) {
       setEquippedItems(prev => ({ ...prev, [item.type]: itemId }));
@@ -206,28 +232,17 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
     setEquippedItems(prev => ({ ...prev, [type]: null }));
   }, []);
 
-  // Build effective skin with equipped accessories
   const effectiveSkin = useMemo(() => {
     let s = { ...skin };
     const hatId = equippedItems['hat'];
     const capeId = equippedItems['cape'];
     const bodyId = equippedItems['body_color'];
-    if (hatId) {
-      const item = SHOP_ITEMS.find(i => i.id === hatId);
-      if (item?.color) s = { ...s, hat: item.color };
-    }
-    if (capeId) {
-      const item = SHOP_ITEMS.find(i => i.id === capeId);
-      if (item?.color) s = { ...s, cape: item.color };
-    }
-    if (bodyId) {
-      const item = SHOP_ITEMS.find(i => i.id === bodyId);
-      if (item?.color) s = { ...s, head: item.color, body: item.color, arms: item.color, legs: item.color };
-    }
+    if (hatId) { const item = SHOP_ITEMS.find(i => i.id === hatId); if (item?.color) s = { ...s, hat: item.color }; }
+    if (capeId) { const item = SHOP_ITEMS.find(i => i.id === capeId); if (item?.color) s = { ...s, cape: item.color }; }
+    if (bodyId) { const item = SHOP_ITEMS.find(i => i.id === bodyId); if (item?.color) s = { ...s, head: item.color, body: item.color, arms: item.color, legs: item.color }; }
     return s;
   }, [skin, equippedItems]);
 
-  // Get aura data for player model
   const auraData = useMemo(() => {
     const auraId = equippedItems['aura'];
     if (!auraId) return null;
@@ -242,81 +257,114 @@ export function GameCanvas({ skin, multiplayer }: GameCanvasProps) {
         camera={{ fov: 70, near: 0.1, far: 250, position: [0, 20, 0] }}
         style={{ background: '#87CEEB' }}
         gl={{ antialias: false }}
-        onCreated={({ scene }) => {
-          scene.background = new THREE.Color('#87CEEB');
-        }}
+        onCreated={({ scene }) => { scene.background = new THREE.Color('#87CEEB'); }}
       >
-
         <DayNightCycle onTimeChange={handleTimeChange} speed={0.000556} />
-
         <Terrain blocks={blocks} />
         <Fruits fruits={fruits} />
         <CoinsRenderer coins={coins} />
-        <MobsRenderer
-          mobs={mobs}
-          blocks={blocks}
-          onMobHit={handleMobHit}
-          onPlayerDamage={handlePlayerDamage}
-        />
+        <MobsRenderer mobs={mobs} blocks={blocks} onMobHit={handleMobHit} onPlayerDamage={handlePlayerDamage} />
         <Player
-          blocks={blocks}
-          fruits={fruits}
-          mobs={mobs}
-          coins={coins}
-          skin={effectiveSkin}
-          onBlockBreak={handleBlockBreak}
-          onFruitCollect={handleFruitCollect}
-          onCoinCollect={handleCoinCollect}
-          onMobHit={handleMobHit}
-          sendPosition={isMultiplayer ? mp.sendPosition : undefined}
-          playerHealth={playerHealth}
-          equippedItem={inventory.equippedItem}
+          blocks={blocks} fruits={fruits} mobs={mobs} coins={coins} skin={effectiveSkin}
+          onBlockBreak={handleBlockBreak} onFruitCollect={handleFruitCollect} onCoinCollect={handleCoinCollect}
+          onMobHit={handleMobHit} sendPosition={isMultiplayer ? mp.sendPosition : undefined}
+          playerHealth={playerHealth} equippedItem={inventory.equippedItem}
         />
         {isMultiplayer && <RemotePlayersRenderer players={mp.remotePlayers} />}
       </Canvas>
+
       <GameHUD
-        score={score}
-        collectedFruits={collectedFruits}
-        blocksDestroyed={blocksDestroyed}
-        playerHealth={playerHealth}
-        isNight={isNight}
-        mobsKilled={mobsKilled}
+        score={score} collectedFruits={collectedFruits} blocksDestroyed={blocksDestroyed}
+        playerHealth={playerHealth} hunger={hunger} isNight={isNight} mobsKilled={mobsKilled}
         roomCode={multiplayer?.roomCode}
         playersOnline={isMultiplayer ? mp.remotePlayers.length + 1 : undefined}
-        inventory={inventory}
-        voxelCoins={voxelCoins}
-        locked={locked}
+        inventory={inventory} voxelCoins={voxelCoins} locked={locked}
+        onExit={onExit}
       />
+
       {inventory.craftingOpen && (
-        <CraftingUI
-          items={inventory.items}
-          canCraft={inventory.canCraft}
-          onCraft={inventory.craft}
-          onClose={() => inventory.setCraftingOpen(false)}
-        />
+        <CraftingUI items={inventory.items} canCraft={inventory.canCraft} onCraft={inventory.craft} onClose={() => inventory.setCraftingOpen(false)} />
       )}
+
       <GameChat
         playerName={playerName}
         messages={isMultiplayer ? mp.chatMessages : localChat}
         onSendMessage={isMultiplayer ? mp.sendChatMessage : (text) => {
-          setLocalChat(prev => [...prev.slice(-49), {
-            id: `local-${Date.now()}`,
-            sender: playerName,
-            text,
-            timestamp: Date.now(),
-          }]);
+          setLocalChat(prev => [...prev.slice(-49), { id: `local-${Date.now()}`, sender: playerName, text, timestamp: Date.now() }]);
         }}
       />
+
       {shopOpen && (
-        <CoinShop
-          coins={voxelCoins}
-          ownedItems={ownedItems}
-          equippedItems={equippedItems}
-          onClose={() => setShopOpen(false)}
-          onPurchaseItem={handleShopPurchase}
-          onEquipItem={handleEquipItem}
-          onUnequipItem={handleUnequipItem}
+        <CoinShop coins={voxelCoins} ownedItems={ownedItems} equippedItems={equippedItems}
+          onClose={() => setShopOpen(false)} onPurchaseItem={handleShopPurchase}
+          onEquipItem={handleEquipItem} onUnequipItem={handleUnequipItem}
         />
+      )}
+
+      {/* Ranking overlay */}
+      {showRanking && (
+        <div className="absolute inset-0 flex items-center justify-center bg-background/70 backdrop-blur-sm" style={{ zIndex: 60 }}>
+          <div className="bg-background border border-border rounded-xl p-6 w-full max-w-md max-h-[80vh] overflow-y-auto">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="font-pixel text-lg text-primary">🏆 RANKING</h2>
+              <button onClick={() => setShowRanking(false)} className="font-pixel text-xs px-3 py-1 bg-muted text-muted-foreground rounded hover:bg-muted/80">
+                R Fechar
+              </button>
+            </div>
+
+            <div className="mb-4 text-center">
+              <p className="font-pixel text-2xl text-secondary">{score}</p>
+              <p className="text-xs font-game text-muted-foreground">PONTOS TOTAIS</p>
+            </div>
+
+            {scoreLog.length === 0 ? (
+              <p className="text-sm font-game text-muted-foreground text-center">Nenhuma pontuação ainda. Mate mobs e colete frutas!</p>
+            ) : (
+              <>
+                {/* Mobs section */}
+                {scoreLog.filter(e => e.type === 'mob').length > 0 && (
+                  <div className="mb-4">
+                    <p className="font-game text-sm text-muted-foreground mb-2">💀 Mobs Eliminados</p>
+                    {scoreLog.filter(e => e.type === 'mob').sort((a, b) => b.points - a.points).map((entry, i) => (
+                      <div key={i} className="flex items-center justify-between py-1.5 px-3 bg-muted/20 rounded-lg mb-1 border border-border/30">
+                        <span className="text-sm font-game text-foreground">{entry.name}</span>
+                        <div className="text-right">
+                          <span className="text-xs font-game text-muted-foreground">x{entry.count} </span>
+                          <span className="text-sm font-pixel text-primary">+{entry.points}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Fruits section */}
+                {scoreLog.filter(e => e.type === 'fruit').length > 0 && (
+                  <div className="mb-4">
+                    <p className="font-game text-sm text-muted-foreground mb-2">🍎 Frutas Coletadas</p>
+                    {scoreLog.filter(e => e.type === 'fruit').sort((a, b) => b.points - a.points).map((entry, i) => (
+                      <div key={i} className="flex items-center justify-between py-1.5 px-3 bg-muted/20 rounded-lg mb-1 border border-border/30">
+                        <span className="text-sm font-game text-foreground">{entry.emoji} {entry.name}</span>
+                        <div className="text-right">
+                          <span className="text-xs font-game text-muted-foreground">x{entry.count} </span>
+                          <span className="text-sm font-pixel text-secondary">+{entry.points}</span>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </>
+            )}
+
+            <div className="mt-4 p-3 bg-muted/20 rounded-lg border border-border/30">
+              <p className="text-xs font-game text-muted-foreground text-center">
+                🧟 Zumbi: 50pts • 💀 Esqueleto: 60pts • 🕷️ Aranha: 40pts
+              </p>
+              <p className="text-xs font-game text-muted-foreground text-center mt-1">
+                🔥 Fogo: 200pts • ❄️ Gelo: 150pts • ⚡ Luz: 250pts • 🌑 Trevas: 300pts • 🩷 Borracha: 100pts
+              </p>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
