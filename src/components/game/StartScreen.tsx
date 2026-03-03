@@ -53,7 +53,7 @@ export function StartScreen({ onStart, customSkins = [], onCreateSkin }: StartSc
             {/* Title */}
             <div className="animate-slide-up" style={{ animationDelay: '0.1s', opacity: 0 }}>
               <h1 className="font-pixel text-3xl sm:text-5xl md:text-6xl text-primary text-glow-green tracking-wider">
-                VOXEL
+                MINE
               </h1>
               <h1 className="font-pixel text-3xl sm:text-5xl md:text-6xl text-secondary text-glow-orange tracking-wider mt-2">
                 FRUITS

@@ -50,7 +50,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
         <div className="text-muted-foreground text-sm font-game mt-1">PONTOS</div>
         <div className="mt-2 bg-secondary/20 backdrop-blur-sm rounded-lg px-3 py-1 border border-secondary/30">
           <span className="font-pixel text-secondary text-sm">🪙 {voxelCoins}</span>
-          <span className="text-[10px] font-game text-muted-foreground ml-1">VoxelCoins</span>
+          <span className="text-[10px] font-game text-muted-foreground ml-1">MineCoins</span>
         </div>
       </div>
 
