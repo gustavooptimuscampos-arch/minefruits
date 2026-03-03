@@ -64,7 +64,7 @@ export default function Auth() {
 
       <div className="relative z-10 w-full max-w-md px-4">
         <div className="text-center mb-8">
-          <h1 className="font-pixel text-3xl text-primary text-glow-green">VOXEL</h1>
+          <h1 className="font-pixel text-3xl text-primary text-glow-green">MINE</h1>
           <h1 className="font-pixel text-3xl text-secondary text-glow-orange">FRUITS</h1>
         </div>
 
