@@ -25,7 +25,7 @@ const SUSPICIOUS_PATTERNS = [
   /^\d+$/, // only digits
 ];
 
-const MIN_AGE = 13;
+const MIN_AGE = 60;
 
 function validateName(name: string): string | null {
   const trimmed = name.trim().toLowerCase();
