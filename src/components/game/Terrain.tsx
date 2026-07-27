@@ -160,20 +160,31 @@ function Water({ geometry }: { geometry: THREE.BufferGeometry }) {
   );
 }
 
+function TerrainChunk({ geometry, transparent }: { geometry: THREE.BufferGeometry; transparent: boolean }) {
+  const matRef = useRef<THREE.MeshBasicMaterial>(null);
+  useFrame(() => {
+    if (matRef.current) matRef.current.color.copy(lightState.tint);
+  });
+  return (
+    <mesh geometry={geometry} frustumCulled={false}>
+      <meshBasicMaterial
+        ref={matRef}
+        vertexColors
+        transparent={transparent}
+        opacity={transparent ? 0.95 : 1}
+        alphaTest={transparent ? 0.1 : 0}
+      />
+    </mesh>
+  );
+}
+
 export function Terrain({ blocks }: TerrainProps) {
   const { meshes, waterGeo } = useMemo(() => buildMeshes(blocks), [blocks]);
 
   return (
     <>
       {meshes.map(({ key, geo, transparent }) => (
-        <mesh key={key} geometry={geo} frustumCulled={false}>
-          <meshBasicMaterial
-            vertexColors
-            transparent={transparent}
-            opacity={transparent ? 0.95 : 1}
-            alphaTest={transparent ? 0.1 : 0}
-          />
-        </mesh>
+        <TerrainChunk key={key} geometry={geo} transparent={transparent} />
       ))}
       {waterGeo && <Water geometry={waterGeo} />}
     </>
