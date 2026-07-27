@@ -50,6 +50,29 @@ function findSafeSpawn(blocks: Record<string, BlockType>) {
   return { x: 0.5, z: 0.5, groundY: fallbackGround };
 }
 
+function playFootstep(ref: React.MutableRefObject<AudioContext | null>, gain: number) {
+  try {
+    if (!ref.current) ref.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const ctx = ref.current;
+    if (ctx.state === 'suspended') ctx.resume();
+    const now = ctx.currentTime;
+    const buffer = ctx.createBuffer(1, 1600, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for (let i = 0; i < data.length; i++) {
+      data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / data.length, 3);
+    }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass';
+    filter.frequency.value = 700 + Math.random() * 400;
+    const g = ctx.createGain();
+    g.gain.value = gain;
+    src.connect(filter).connect(g).connect(ctx.destination);
+    src.start(now);
+  } catch { /* audio unavailable */ }
+}
+
 export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, equippedItem }: PlayerProps) {
   const { camera } = useThree();
   const controlsRef = useRef<any>(null);
@@ -63,11 +86,24 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
   const playerPos = useRef(new THREE.Vector3(0, 8, 0));
   const playerYaw = useRef(0);
   const isMovingRef = useRef(false);
+  const sprintRef = useRef(false);
+  const crouchRef = useRef(false);
+  const bobRef = useRef(0);
+  const landDipRef = useRef(0);
+  const wasOnGroundRef = useRef(true);
+  const stepAccRef = useRef(0);
+  const horizVel = useRef(new THREE.Vector3());
+  const audioRef = useRef<AudioContext | null>(null);
   blocksRef.current = blocks;
   fruitsRef.current = fruits;
   mobsRef.current = mobs;
 
-  const SPEED = 6;
+  const SPEED = 4.6;
+  const SPRINT_MULT = 1.65;
+  const CROUCH_MULT = 0.42;
+  const ACCEL = 14;
+  const FRICTION = 11;
+  const BASE_FOV = 70;
   const JUMP_SPEED = 7;
   const GRAVITY = 18;
   const PLAYER_HEIGHT = 1.7;
@@ -94,6 +130,8 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
         case 'KeyA': case 'ArrowLeft': moveState.current.left = true; break;
         case 'KeyD': case 'ArrowRight': moveState.current.right = true; break;
         case 'Space': moveState.current.jump = true; break;
+        case 'ShiftLeft': case 'ShiftRight': sprintRef.current = true; break;
+        case 'ControlLeft': case 'ControlRight': case 'KeyC': crouchRef.current = true; break;
         case 'KeyV':
           thirdPersonRef.current = !thirdPersonRef.current;
           setThirdPerson(thirdPersonRef.current);
@@ -107,6 +145,8 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
         case 'KeyA': case 'ArrowLeft': moveState.current.left = false; break;
         case 'KeyD': case 'ArrowRight': moveState.current.right = false; break;
         case 'Space': moveState.current.jump = false; break;
+        case 'ShiftLeft': case 'ShiftRight': sprintRef.current = false; break;
+        case 'ControlLeft': case 'ControlRight': case 'KeyC': crouchRef.current = false; break;
       }
     };
     document.addEventListener('keydown', onKeyDown);
@@ -183,9 +223,20 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
     isMovingRef.current = isMoving;
     if (isMoving) moveDir.normalize();
 
-    // Update player position
-    playerPos.current.x += moveDir.x * SPEED * dt;
-    playerPos.current.z += moveDir.z * SPEED * dt;
+    // Speed depends on sprint / crouch state
+    const sprinting = sprintRef.current && isMoving && !crouchRef.current;
+    const crouching = crouchRef.current;
+    const targetSpeed = SPEED * (sprinting ? SPRINT_MULT : crouching ? CROUCH_MULT : 1);
+
+    // Acceleration + friction gives the movement weight (inertia)
+    const desired = moveDir.clone().multiplyScalar(targetSpeed);
+    const rate = isMoving ? ACCEL : FRICTION;
+    horizVel.current.x += (desired.x - horizVel.current.x) * Math.min(1, rate * dt);
+    horizVel.current.z += (desired.z - horizVel.current.z) * Math.min(1, rate * dt);
+    if (horizVel.current.lengthSq() < 0.0004) horizVel.current.set(0, 0, 0);
+
+    playerPos.current.x += horizVel.current.x * dt;
+    playerPos.current.z += horizVel.current.z * dt;
 
     velocity.current.y -= GRAVITY * dt;
 
@@ -223,9 +274,43 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
       );
       camera.lookAt(playerPos.current.x, playerPos.current.y, playerPos.current.z);
     } else {
-      // First person
-      camera.position.copy(playerPos.current);
+      // First person with head bob, crouch offset and landing dip
+      const speedRatio = horizVel.current.length() / (SPEED * SPRINT_MULT);
+      bobRef.current += dt * (8 + speedRatio * 9) * (onGround ? speedRatio : 0);
+      const bobY = Math.sin(bobRef.current * 2) * 0.055 * speedRatio;
+      const bobX = Math.cos(bobRef.current) * 0.035 * speedRatio;
+      const side = rightDir.clone().multiplyScalar(bobX);
+
+      camera.position.set(
+        playerPos.current.x + side.x,
+        playerPos.current.y + bobY - (crouching ? 0.45 : 0) - landDipRef.current,
+        playerPos.current.z + side.z,
+      );
+      camera.rotation.z = Math.sin(bobRef.current) * 0.006 * speedRatio;
+
+      // Footsteps
+      stepAccRef.current += horizVel.current.length() * dt;
+      if (onGround && stepAccRef.current > (sprinting ? 1.6 : 2.1)) {
+        stepAccRef.current = 0;
+        playFootstep(audioRef, sprinting ? 0.06 : 0.04);
+      }
     }
+
+    // Field of view reacts to sprinting
+    if ((camera as THREE.PerspectiveCamera).isPerspectiveCamera) {
+      const cam = camera as THREE.PerspectiveCamera;
+      const targetFov = BASE_FOV + (sprinting ? 8 : 0) - (crouching ? 3 : 0);
+      cam.fov += (targetFov - cam.fov) * Math.min(1, dt * 6);
+      cam.updateProjectionMatrix();
+    }
+
+    // Landing impact
+    if (onGround && !wasOnGroundRef.current) {
+      landDipRef.current = Math.min(0.28, Math.abs(velocity.current.y) * 0.02 + 0.12);
+      playFootstep(audioRef, 0.09);
+    }
+    wasOnGroundRef.current = onGround;
+    landDipRef.current = Math.max(0, landDipRef.current - dt * 1.1);
 
     // Fruit collection
     fruitsRef.current.forEach(fruit => {
