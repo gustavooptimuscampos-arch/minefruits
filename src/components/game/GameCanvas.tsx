@@ -6,6 +6,7 @@ import { Player } from './Player';
 import { Fruits } from './Fruits';
 import { MobsRenderer } from './MobsRenderer';
 import { DayNightCycle } from './DayNightCycle';
+import { Weather } from './Weather';
 import { RemotePlayersRenderer } from './RemotePlayersRenderer';
 import { GameHUD } from './GameHUD';
 import { CraftingUI } from './CraftingUI';
@@ -256,10 +257,17 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
         shadows={false}
         camera={{ fov: 70, near: 0.1, far: 250, position: [0, 20, 0] }}
         style={{ background: '#87CEEB' }}
-        gl={{ antialias: false }}
-        onCreated={({ scene }) => { scene.background = new THREE.Color('#87CEEB'); }}
+        gl={{ antialias: true, powerPreference: 'high-performance' }}
+        dpr={[1, 1.5]}
+        onCreated={({ scene, gl }) => {
+          scene.background = new THREE.Color('#7ec0ee');
+          scene.fog = new THREE.Fog('#7ec0ee', 60, 170);
+          gl.toneMapping = THREE.ACESFilmicToneMapping;
+          gl.toneMappingExposure = 1.05;
+        }}
       >
         <DayNightCycle onTimeChange={handleTimeChange} speed={0.000556} />
+        <Weather />
         <Terrain blocks={blocks} />
         <Fruits fruits={fruits} />
         <CoinsRenderer coins={coins} />
