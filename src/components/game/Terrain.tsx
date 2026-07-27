@@ -2,6 +2,7 @@ import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { BlockType, BLOCK_COLORS } from './types';
+import { lightState } from './lightState';
 
 interface TerrainProps {
   blocks: Record<string, BlockType>;
