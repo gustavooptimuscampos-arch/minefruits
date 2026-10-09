@@ -18,6 +18,7 @@ const Index = () => {
   const [roomCode, setRoomCode] = useState<string | null>(null);
   const [playerName, setPlayerName] = useState('Player');
   const [isSinglePlayer, setIsSinglePlayer] = useState(true);
+  const [guest, setGuest] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -45,8 +46,20 @@ const Index = () => {
     );
   }
 
-  if (!session) {
-    return <Auth />;
+  if (!session && !guest) {
+    return (
+      <div className="relative">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+          <button
+            onClick={() => { setGuest(true); setPlayerName('Visitante'); }}
+            className="font-pixel text-xs px-4 py-2 bg-primary text-primary-foreground rounded shadow-lg hover:opacity-90"
+          >
+            🎮 Jogar como visitante
+          </button>
+        </div>
+        <Auth />
+      </div>
+    );
   }
 
   const handleStart = (skin: SkinData, mode: 'single' | 'multi') => {
@@ -78,6 +91,7 @@ const Index = () => {
   };
 
   const handleLogout = async () => {
+    if (guest) { setGuest(false); return; }
     await supabase.auth.signOut();
   };
 
