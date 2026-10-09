@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { BlockType } from './types';
 import { getGroundHeight } from './terrainGenerator';
 
-export type MobType = 'zombie' | 'skeleton' | 'spider' | 'cow' | 'pig' | 'chicken' | 'villager';
+export type MobType = 'zombie' | 'skeleton' | 'spider' | 'cow' | 'pig' | 'chicken' | 'sheep' | 'villager';
 
 export interface MobData {
   id: string;
@@ -32,6 +32,7 @@ export const MOB_CONFIG: Record<MobType, {
   cow: { color: '#8B6914', eyeColor: '#222222', health: 10, speed: 1.2, hostile: false, bodyScale: [0.7, 0.8, 0.5], label: '🐄 Vaca' },
   pig: { color: '#e8a0a0', eyeColor: '#222222', health: 8, speed: 1.5, hostile: false, bodyScale: [0.6, 0.55, 0.45], label: '🐷 Porco' },
   chicken: { color: '#f0f0f0', eyeColor: '#222222', health: 4, speed: 1.8, hostile: false, bodyScale: [0.3, 0.4, 0.3], label: '🐔 Galinha' },
+  sheep: { color: '#eeeeea', eyeColor: '#222222', health: 8, speed: 1.3, hostile: false, bodyScale: [0.8, 1.45, 1.05], label: '🐑 Ovelha' },
   villager: { color: '#c4956a', eyeColor: '#5a3a1a', health: 20, speed: 1, hostile: false, bodyScale: [0.5, 1.1, 0.35], label: '👤 Aldeão' },
 };
 
@@ -40,8 +41,8 @@ export function spawnMobs(blocks: Record<string, BlockType>, isNight: boolean): 
   const half = 14;
 
   // Animals & villagers always
-  const passiveTypes: MobType[] = ['cow', 'pig', 'chicken', 'villager'];
-  for (let i = 0; i < 12; i++) {
+  const passiveTypes: MobType[] = ['cow', 'pig', 'sheep', 'chicken', 'cow', 'sheep', 'pig', 'villager'];
+  for (let i = 0; i < 16; i++) {
     const type = passiveTypes[i % passiveTypes.length];
     const config = MOB_CONFIG[type];
     const x = (Math.random() - 0.5) * half * 2;

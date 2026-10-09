@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { MobData, MOB_CONFIG } from './mobs';
 import { BlockType } from './types';
 import { getGroundHeight } from './terrainGenerator';
+import { AnimalModel, AnimalType, ANIMAL_TYPES } from './AnimalModel';
 
 interface MobsRendererProps {
   mobs: MobData[];
@@ -35,6 +36,8 @@ function MobMesh({ mob, blocks, onPlayerDamage }: { mob: MobData; blocks: Record
   const wanderTimer = useRef(0);
   const attackCooldown = useRef(0);
   const hurtFlash = useRef(0);
+  const moving = useRef(0);
+  const isAnimal = ANIMAL_TYPES.includes(mob.type as AnimalType);
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
@@ -76,7 +79,9 @@ function MobMesh({ mob, blocks, onPlayerDamage }: { mob: MobData; blocks: Record
 
       const dir = new THREE.Vector3().subVectors(wanderTarget.current, pos);
       dir.y = 0;
-      if (dir.length() > 0.5) {
+      const walking = dir.length() > 0.5;
+      moving.current += ((walking ? 1 : 0) - moving.current) * (1 - Math.exp(-6 * dt));
+      if (walking) {
         dir.normalize();
         pos.x += dir.x * config.speed * 0.4 * dt;
         pos.z += dir.z * config.speed * 0.4 * dt;
@@ -86,7 +91,7 @@ function MobMesh({ mob, blocks, onPlayerDamage }: { mob: MobData; blocks: Record
 
     // Ground snap
     const groundY = getGroundHeight(pos.x, pos.z, blocks);
-    pos.y = groundY + config.bodyScale[1] / 2;
+    pos.y = isAnimal ? groundY : groundY + config.bodyScale[1] / 2;
 
     // Keep in bounds
     pos.x = Math.max(-15, Math.min(15, pos.x));
@@ -97,6 +102,14 @@ function MobMesh({ mob, blocks, onPlayerDamage }: { mob: MobData; blocks: Record
   const isSpider = mob.type === 'spider';
   const headSize = isSpider ? bh * 0.7 : Math.min(bw, bd) * 0.8;
   const legAnim = Math.sin(walkPhase.current) * 0.3;
+
+  if (isAnimal) {
+    return (
+      <group ref={groupRef} position={mob.position}>
+        <AnimalModel type={mob.type as AnimalType} moving={moving} />
+      </group>
+    );
+  }
 
   return (
     <group ref={groupRef} position={mob.position}>

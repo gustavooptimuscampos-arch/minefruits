@@ -9,6 +9,7 @@ export const MOB_POINTS: Record<MobType, number> = {
   cow: 10,
   pig: 10,
   chicken: 5,
+  sheep: 10,
   villager: 0,
 };
 
