@@ -1,10 +1,13 @@
-import { useRef, useMemo } from 'react';
+import { useRef, useMemo, useEffect } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { MobData, MOB_CONFIG } from './mobs';
 import { BlockType } from './types';
 import { getGroundHeight } from './terrainGenerator';
 import { AnimalModel, AnimalType, ANIMAL_TYPES } from './AnimalModel';
+
+/** Posições vivas dos mobs (usado pelo cachorro). */
+export const mobRegistry = new Map<string, { pos: THREE.Vector3; hostile: boolean }>();
 
 interface MobsRendererProps {
   mobs: MobData[];
@@ -38,6 +41,12 @@ function MobMesh({ mob, blocks, onPlayerDamage }: { mob: MobData; blocks: Record
   const hurtFlash = useRef(0);
   const moving = useRef(0);
   const isAnimal = ANIMAL_TYPES.includes(mob.type as AnimalType);
+
+  useEffect(() => {
+    const g = groupRef.current;
+    if (g) mobRegistry.set(mob.id, { pos: g.position, hostile: mob.hostile });
+    return () => { mobRegistry.delete(mob.id); };
+  }, [mob.id, mob.hostile]);
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;

@@ -5,6 +5,7 @@ import { Terrain } from './Terrain';
 import { Player } from './Player';
 import { Fruits } from './Fruits';
 import { MobsRenderer } from './MobsRenderer';
+import { Dog } from './Dog';
 import { DayNightCycle } from './DayNightCycle';
 import { Weather } from './Weather';
 import { RemotePlayersRenderer } from './RemotePlayersRenderer';
@@ -271,6 +272,7 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
         <Terrain blocks={blocks} />
         <Fruits fruits={fruits} />
         <CoinsRenderer coins={coins} />
+        <Dog blocks={blocks} onMobHit={handleMobHit} />
         <MobsRenderer mobs={mobs} blocks={blocks} onMobHit={handleMobHit} onPlayerDamage={handlePlayerDamage} />
         <Player
           blocks={blocks} fruits={fruits} mobs={mobs} coins={coins} skin={effectiveSkin}
