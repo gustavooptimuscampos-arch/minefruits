@@ -117,6 +117,8 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
     const spawnY = safeSpawn.groundY + PLAYER_HEIGHT + 2;
     camera.position.set(safeSpawn.x, spawnY, safeSpawn.z);
     playerPos.current.set(safeSpawn.x, spawnY, safeSpawn.z);
+    // Ordem YXZ (giro → inclinação → rolagem): mexer só no "z" nunca vira a câmera de ponta-cabeça
+    camera.rotation.order = 'YXZ';
     // Look slightly downward so terrain is visible immediately
     camera.rotation.set(-0.4, 0, 0);
   }, [camera, blocks]);
@@ -286,6 +288,7 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
         playerPos.current.y + bobY - (crouching ? 0.45 : 0) - landDipRef.current,
         playerPos.current.z + side.z,
       );
+      camera.rotation.order = 'YXZ';
       camera.rotation.z = Math.sin(bobRef.current) * 0.006 * speedRatio;
 
       // Footsteps
@@ -343,7 +346,7 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
 
   return (
     <>
-      <PointerLockControls ref={controlsRef} />
+      <PointerLockControls ref={controlsRef} minPolarAngle={0.05} maxPolarAngle={Math.PI - 0.05} />
       {thirdPerson && (
         <PlayerModel
           skin={skin}
