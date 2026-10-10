@@ -7,6 +7,10 @@ import { MobData } from './mobs';
 import { SkinData } from './skins';
 import { PlayerModel } from './PlayerModel';
 import { getGroundHeight } from './terrainGenerator';
+import { touchInput, isTouchDevice } from './touchInput';
+
+const TOUCH_LOOK_SPEED = 0.0055;
+const MAX_PITCH = Math.PI / 2 - 0.05;
 
 interface PlayerProps {
   blocks: Record<string, BlockType>;
@@ -94,6 +98,8 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
   const stepAccRef = useRef(0);
   const horizVel = useRef(new THREE.Vector3());
   const audioRef = useRef<AudioContext | null>(null);
+  const attackRef = useRef<() => void>(() => {});
+  const lookEuler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
   blocksRef.current = blocks;
   fruitsRef.current = fruits;
   mobsRef.current = mobs;
@@ -159,10 +165,9 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
     };
   }, []);
 
-  // Click: attack mobs or break blocks
+  // Click (computador) ou botão de ataque (celular): atacar mobs ou quebrar blocos
   useEffect(() => {
-    const onClick = () => {
-      if (!document.pointerLockElement) return;
+    const attack = () => {
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
 
@@ -199,6 +204,10 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
         }
       }
     };
+    attackRef.current = attack;
+    const onClick = () => {
+      if (document.pointerLockElement) attack();
+    };
     document.addEventListener('click', onClick);
     return () => document.removeEventListener('click', onClick);
   }, [camera, onBlockBreak, onMobHit]);
@@ -207,6 +216,21 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
     const dt = Math.min(delta, 0.1);
     const { forward, backward, left, right, jump } = moveState.current;
     const currentBlocks = blocksRef.current;
+
+    // Celular: arrastar o dedo gira a câmera
+    if (touchInput.lookDX || touchInput.lookDY) {
+      const e = lookEuler.current.setFromQuaternion(camera.quaternion, 'YXZ');
+      e.y -= touchInput.lookDX * TOUCH_LOOK_SPEED;
+      e.x = Math.max(-MAX_PITCH, Math.min(MAX_PITCH, e.x - touchInput.lookDY * TOUCH_LOOK_SPEED));
+      e.z = 0;
+      camera.quaternion.setFromEuler(e);
+      touchInput.lookDX = 0;
+      touchInput.lookDY = 0;
+    }
+    while (touchInput.attacks > 0) {
+      touchInput.attacks--;
+      attackRef.current();
+    }
 
     const forwardDir = new THREE.Vector3();
     camera.getWorldDirection(forwardDir);
@@ -221,12 +245,17 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
     if (backward) moveDir.sub(forwardDir);
     if (right) moveDir.add(rightDir);
     if (left) moveDir.sub(rightDir);
+    // Joystick do celular (analógico)
+    if (Math.hypot(touchInput.moveX, touchInput.moveY) > 0.12) {
+      moveDir.addScaledVector(forwardDir, -touchInput.moveY).addScaledVector(rightDir, touchInput.moveX);
+    }
     const isMoving = moveDir.length() > 0;
     isMovingRef.current = isMoving;
-    if (isMoving) moveDir.normalize();
+    // Teclado: sempre velocidade cheia. Joystick: anda mais devagar com o dedo perto do centro.
+    if (isMoving) moveDir.multiplyScalar(1 / Math.max(1, moveDir.length()));
 
     // Speed depends on sprint / crouch state
-    const sprinting = sprintRef.current && isMoving && !crouchRef.current;
+    const sprinting = (sprintRef.current || touchInput.sprint) && isMoving && !crouchRef.current;
     const crouching = crouchRef.current;
     const targetSpeed = SPEED * (sprinting ? SPRINT_MULT : crouching ? CROUCH_MULT : 1);
 
@@ -245,7 +274,7 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
     const groundY = getGroundHeight(playerPos.current.x, playerPos.current.z, currentBlocks);
     const onGround = playerPos.current.y <= groundY + PLAYER_HEIGHT + 0.1;
 
-    if (jump && onGround) {
+    if ((jump || touchInput.jump) && onGround) {
       velocity.current.y = JUMP_SPEED;
     }
 
@@ -346,7 +375,7 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
 
   return (
     <>
-      <PointerLockControls ref={controlsRef} minPolarAngle={0.05} maxPolarAngle={Math.PI - 0.05} />
+      {!isTouchDevice && <PointerLockControls ref={controlsRef} minPolarAngle={0.05} maxPolarAngle={Math.PI - 0.05} />}
       {thirdPerson && (
         <PlayerModel
           skin={skin}

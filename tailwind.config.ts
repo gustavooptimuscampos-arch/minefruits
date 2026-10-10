@@ -13,6 +13,10 @@ export default {
       },
     },
     extend: {
+      screens: {
+        // Celular deitado (tela baixa)
+        short: { raw: "(max-height: 500px)" },
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",

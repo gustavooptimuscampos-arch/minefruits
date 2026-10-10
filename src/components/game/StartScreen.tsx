@@ -15,7 +15,7 @@ export function StartScreen({ onStart, customSkins = [], onCreateSkin }: StartSc
   const [showSkins, setShowSkins] = useState(false);
 
   return (
-    <div className="relative min-h-screen flex flex-col items-center justify-center overflow-hidden bg-background">
+    <div className="relative min-h-[100dvh] flex flex-col items-center justify-center overflow-hidden bg-background short:py-3">
       {/* Background */}
       <div
         className="absolute inset-0 bg-cover bg-center opacity-70"
@@ -47,27 +47,27 @@ export function StartScreen({ onStart, customSkins = [], onCreateSkin }: StartSc
       </div>
 
       {/* Content */}
-      <div className="relative z-10 text-center px-4 w-full max-w-2xl">
+      <div className="relative z-10 text-center px-4 w-full max-w-2xl short:max-w-4xl">
         {!showSkins ? (
           <>
             {/* Title */}
             <div className="animate-slide-up" style={{ animationDelay: '0.1s', opacity: 0 }}>
-              <h1 className="font-pixel text-3xl sm:text-5xl md:text-6xl text-primary text-glow-green tracking-wider">
+              <h1 className="font-pixel text-3xl sm:text-5xl md:text-6xl short:text-2xl text-primary text-glow-green tracking-wider">
                 MINE
               </h1>
-              <h1 className="font-pixel text-3xl sm:text-5xl md:text-6xl text-secondary text-glow-orange tracking-wider mt-2">
+              <h1 className="font-pixel text-3xl sm:text-5xl md:text-6xl short:text-2xl text-secondary text-glow-orange tracking-wider mt-2 short:mt-1">
                 FRUITS
               </h1>
             </div>
 
-            <div className="animate-slide-up mt-6" style={{ animationDelay: '0.3s', opacity: 0 }}>
+            <div className="animate-slide-up mt-6 short:mt-2" style={{ animationDelay: '0.3s', opacity: 0 }}>
               <p className="font-game text-lg sm:text-xl text-muted-foreground tracking-widest uppercase">
                 Minecraft × Blox Fruits
               </p>
             </div>
 
             {/* Fruit icons */}
-            <div className="animate-slide-up flex justify-center gap-4 mt-8" style={{ animationDelay: '0.5s', opacity: 0 }}>
+            <div className="animate-slide-up flex justify-center gap-4 mt-8 short:mt-3" style={{ animationDelay: '0.5s', opacity: 0 }}>
               {Object.entries(FRUIT_CONFIG).map(([key, config]) => (
                 <div key={key} className="text-center">
                   <div
@@ -83,18 +83,25 @@ export function StartScreen({ onStart, customSkins = [], onCreateSkin }: StartSc
             </div>
 
             {/* Play button */}
-            <div className="animate-slide-up mt-12" style={{ animationDelay: '0.7s', opacity: 0 }}>
+            <div className="animate-slide-up mt-12 short:mt-4" style={{ animationDelay: '0.7s', opacity: 0 }}>
               <button
                 onClick={() => setShowSkins(true)}
-                className="font-pixel text-sm sm:text-base px-8 py-4 bg-primary text-primary-foreground rounded-lg box-glow-green hover:scale-105 transition-transform duration-200 active:scale-95"
+                className="font-pixel text-sm sm:text-base px-8 py-4 short:py-3 bg-primary text-primary-foreground rounded-lg box-glow-green hover:scale-105 transition-transform duration-200 active:scale-95"
               >
                 ▶ JOGAR
               </button>
             </div>
 
             {/* Controls */}
-            <div className="animate-slide-up mt-8" style={{ animationDelay: '0.9s', opacity: 0 }}>
-              <div className="inline-flex flex-wrap justify-center gap-3 text-xs font-game text-muted-foreground">
+            <div className="animate-slide-up mt-8 short:mt-3" style={{ animationDelay: '0.9s', opacity: 0 }}>
+              <div className="inline-flex flex-wrap justify-center gap-3 text-xs font-game text-muted-foreground touch-only">
+                <span className="bg-muted px-2 py-1 rounded">🕹️ Joystick Andar</span>
+                <span className="bg-muted px-2 py-1 rounded">👆 Arrastar Olhar</span>
+                <span className="bg-muted px-2 py-1 rounded">⚔️ Atacar</span>
+                <span className="bg-muted px-2 py-1 rounded">⬆️ Pular</span>
+                <span className="bg-muted px-2 py-1 rounded">📱 Celular deitado</span>
+              </div>
+              <div className="inline-flex flex-wrap justify-center gap-3 text-xs font-game text-muted-foreground hide-on-touch">
                 <span className="bg-muted px-2 py-1 rounded">WASD Mover</span>
                 <span className="bg-muted px-2 py-1 rounded">Mouse Olhar</span>
                 <span className="bg-muted px-2 py-1 rounded">Clique Atacar</span>
@@ -104,7 +111,7 @@ export function StartScreen({ onStart, customSkins = [], onCreateSkin }: StartSc
             </div>
 
             {/* Identity warning */}
-            <div className="animate-slide-up mt-6" style={{ animationDelay: '1.1s', opacity: 0 }}>
+            <div className="animate-slide-up mt-6 short:mt-3" style={{ animationDelay: '1.1s', opacity: 0 }}>
               <div className="inline-block bg-destructive/10 border border-destructive/30 rounded-lg px-4 py-2">
                 <p className="text-xs font-game text-destructive">
                   ⚠️ PROIBIDO IDENTIDADES FALSAS — Pena de multa de R$ 3.000
@@ -118,17 +125,17 @@ export function StartScreen({ onStart, customSkins = [], onCreateSkin }: StartSc
         ) : (
           <>
             {/* Skin Selection */}
-            <h2 className="font-pixel text-xl sm:text-2xl text-primary text-glow-green mb-8">
+            <h2 className="font-pixel text-xl sm:text-2xl text-primary text-glow-green mb-8 short:mb-3 short:text-base">
               ESCOLHA SUA SKIN
             </h2>
 
-            <div className="grid grid-cols-4 gap-3 sm:gap-4 mb-8">
+            <div className="grid grid-cols-4 short:grid-cols-9 gap-3 sm:gap-4 short:gap-2 mb-8 short:mb-3">
               {allSkins.map((s) => (
                 <button
                   key={s.id}
                   onClick={() => setSelectedSkin(s)}
                   className={`
-                    flex flex-col items-center gap-2 p-3 rounded-lg border-2 transition-all duration-200
+                    flex flex-col items-center gap-2 short:gap-1 p-3 short:p-1.5 rounded-lg border-2 transition-all duration-200
                     ${selectedSkin.id === s.id
                       ? 'border-primary bg-primary/20 scale-105'
                       : 'border-border/50 bg-background/40 hover:border-primary/50 hover:bg-background/60'
@@ -193,11 +200,11 @@ export function StartScreen({ onStart, customSkins = [], onCreateSkin }: StartSc
             </div>
 
             {/* Selected skin info */}
-            <div className="mb-6">
+            <div className="mb-6 short:mb-2">
               <p className="font-game text-lg text-foreground">{selectedSkin.name}</p>
             </div>
 
-            <div className="flex flex-col gap-3 items-center">
+            <div className="flex flex-col short:flex-row short:justify-center gap-3 items-center">
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={() => setShowSkins(false)}

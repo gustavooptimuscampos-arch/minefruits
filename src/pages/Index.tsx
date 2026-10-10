@@ -6,6 +6,19 @@ import { Lobby } from '@/components/game/Lobby';
 import { SkinCreator } from '@/components/game/SkinCreator';
 import { SkinData, SKINS } from '@/components/game/skins';
 import Auth from './Auth';
+import { InstallButton } from '@/components/InstallButton';
+import { isTouchDevice } from '@/components/game/touchInput';
+
+/** No celular, o jogo ocupa a tela toda e fica deitado. */
+function enterMobileFullscreen() {
+  if (!isTouchDevice) return;
+  const el = document.documentElement;
+  const done = el.requestFullscreen ? el.requestFullscreen().catch(() => {}) : Promise.resolve();
+  done.then(() => {
+    const orientation = screen.orientation as ScreenOrientation & { lock?: (o: string) => Promise<void> };
+    orientation?.lock?.('landscape').catch(() => {});
+  });
+}
 
 type Screen = 'start' | 'lobby' | 'game' | 'skin-creator';
 
@@ -49,7 +62,10 @@ const Index = () => {
   if (!session && !guest) {
     return (
       <div className="relative">
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+        <div className="fixed top-4 left-4 z-50">
+          <InstallButton />
+        </div>
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 short:bottom-auto short:top-4 short:left-auto short:right-4 short:translate-x-0">
           <button
             onClick={() => { setGuest(true); setPlayerName('Visitante'); }}
             className="font-pixel text-xs px-4 py-2 bg-primary text-primary-foreground rounded shadow-lg hover:opacity-90"
@@ -64,6 +80,7 @@ const Index = () => {
 
   const handleStart = (skin: SkinData, mode: 'single' | 'multi') => {
     setSelectedSkin(skin);
+    enterMobileFullscreen();
     if (mode === 'multi') {
       setScreen('lobby');
     } else {
@@ -76,6 +93,7 @@ const Index = () => {
     setRoomCode(code);
     setPlayerName(name);
     setIsSinglePlayer(false);
+    enterMobileFullscreen();
     setScreen('game');
   };
 
@@ -88,6 +106,7 @@ const Index = () => {
   const handleExitGame = () => {
     setScreen('start');
     if (document.pointerLockElement) document.exitPointerLock();
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
   };
 
   const handleLogout = async () => {
@@ -115,6 +134,10 @@ const Index = () => {
 
   return (
     <div className="relative">
+      {/* Install button */}
+      <div className="absolute top-4 left-4 z-50">
+        <InstallButton />
+      </div>
       {/* Logout button */}
       <div className="absolute top-4 right-4 z-50">
         <button

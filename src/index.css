@@ -105,3 +105,20 @@
   from { opacity: 0; transform: translateY(30px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ===== Celular / tela de toque ===== */
+@media (pointer: fine) {
+  .touch-only { display: none !important; }
+}
+@media (pointer: coarse) {
+  .hide-on-touch { display: none !important; }
+  .chat-float { bottom: 172px !important; }
+  .chat-panel { bottom: auto !important; top: 56px !important; }
+  html, body { overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+}
+/* Celular deitado: tela baixa, então o HUD fica menor */
+@media (max-height: 500px) {
+  .hud-corner-left { scale: 0.72; transform-origin: top left; top: 8px !important; left: 8px !important; }
+  .hud-corner-right { scale: 0.72; transform-origin: top right; top: 8px !important; right: 8px !important; }
+  .hud-bars { bottom: 84px !important; scale: 0.85; }
+}

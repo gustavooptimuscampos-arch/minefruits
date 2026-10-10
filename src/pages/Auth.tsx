@@ -118,7 +118,7 @@ export default function Auth() {
       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/60 to-background/40" />
 
       <div className="relative z-10 w-full max-w-md px-4">
-        <div className="text-center mb-8">
+        <div className="text-center mb-8 short:mb-3 short:pt-14">
           <h1 className="font-pixel text-3xl text-primary text-glow-green">MINE</h1>
           <h1 className="font-pixel text-3xl text-secondary text-glow-orange">FRUITS</h1>
         </div>

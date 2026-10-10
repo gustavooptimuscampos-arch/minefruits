@@ -60,7 +60,7 @@ export function GameChat({ playerName, onSendMessage, messages }: GameChatProps)
     <>
       {/* Floating recent messages (when chat is closed) */}
       {!isOpen && recentMessages.length > 0 && (
-        <div className="absolute bottom-28 left-4 flex flex-col gap-1 pointer-events-none" style={{ zIndex: 15 }}>
+        <div className="absolute bottom-28 left-4 flex flex-col gap-1 pointer-events-none chat-float" style={{ zIndex: 15 }}>
           {recentMessages.map(msg => (
             <div
               key={msg.id}
@@ -83,7 +83,7 @@ export function GameChat({ playerName, onSendMessage, messages }: GameChatProps)
       {/* Chat panel */}
       {isOpen && (
         <div
-          className="absolute bottom-28 left-4 w-72 sm:w-80 pointer-events-auto"
+          className="absolute bottom-28 left-4 w-72 sm:w-80 pointer-events-auto chat-panel"
           style={{ zIndex: 20 }}
           onClick={e => e.stopPropagation()}
         >
@@ -152,7 +152,7 @@ export function GameChat({ playerName, onSendMessage, messages }: GameChatProps)
 
       {/* Hint */}
       {!isOpen && (
-        <div className="absolute bottom-[68px] left-4 pointer-events-none" style={{ zIndex: 15 }}>
+        <div className="absolute bottom-[68px] left-4 pointer-events-none hide-on-touch" style={{ zIndex: 15 }}>
           <span className="text-[10px] font-game text-muted-foreground/50">T para chat</span>
         </div>
       )}

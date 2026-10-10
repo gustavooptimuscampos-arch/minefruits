@@ -21,6 +21,8 @@ import { generateTerrain, generateFruits, generateCoins } from './terrainGenerat
 import { CoinsRenderer } from './CoinsRenderer';
 import { CoinShop } from './CoinShop';
 import { MOB_POINTS, FRUIT_POINTS, FRUIT_HUNGER, ScoreEntry } from './scoring';
+import { TouchControls } from './TouchControls';
+import { isTouchDevice } from './touchInput';
 
 interface GameCanvasProps {
   skin: SkinData;
@@ -42,7 +44,9 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
   const [score, setScore] = useState(0);
   const [collectedFruits, setCollectedFruits] = useState<FruitType[]>([]);
   const [blocksDestroyed, setBlocksDestroyed] = useState(0);
-  const [locked, setLocked] = useState(false);
+  const [pointerLocked, setLocked] = useState(false);
+  // No celular não existe "travar o mouse": o jogo fica ativo direto.
+  const locked = pointerLocked || isTouchDevice;
   const [playerHealth, setPlayerHealth] = useState(100);
   const [hunger, setHunger] = useState(100);
   const [isNight, setIsNight] = useState(false);
@@ -253,7 +257,7 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
   }, [equippedItems]);
 
   return (
-    <div className="relative w-full h-screen" style={{ background: '#87CEEB' }}>
+    <div className="relative w-full h-[100dvh] overflow-hidden touch-none select-none" style={{ background: '#87CEEB', overscrollBehavior: 'none' }}>
       <Canvas
         shadows={false}
         camera={{ fov: 70, near: 0.1, far: 250, position: [0, 20, 0] }}
@@ -282,6 +286,8 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
         />
         {isMultiplayer && <RemotePlayersRenderer players={mp.remotePlayers} />}
       </Canvas>
+
+      {isTouchDevice && <TouchControls onExit={onExit} />}
 
       <GameHUD
         score={score} collectedFruits={collectedFruits} blocksDestroyed={blocksDestroyed}
