@@ -6,6 +6,8 @@ interface GameHUDProps {
   blocksDestroyed: number;
   playerHealth: number;
   hunger: number;
+  /** Quantas comidas há no inventário (G come). */
+  foodCount?: number;
   isNight: boolean;
   mobsKilled: number;
   roomCode?: string;
@@ -35,7 +37,7 @@ interface GameHUDProps {
   onPause?: () => void;
 }
 
-export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, hunger, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false, totalFruits, biome, power, powers = [], onSelectPower, guardiansLeft, onPause }: GameHUDProps) {
+export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, hunger, foodCount = 0, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false, totalFruits, biome, power, powers = [], onSelectPower, guardiansLeft, onPause }: GameHUDProps) {
   return (
     <div className="absolute inset-0 pointer-events-none select-none" style={{ zIndex: 10 }}>
       {/* Crosshair */}
@@ -119,6 +121,11 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
               />
             </div>
             <span className="text-xs font-game text-foreground">{Math.round(hunger)}</span>
+            {foodCount > 0 && (
+              <span className="text-[10px] font-game text-orange-200" title="Comida no inventário (aperte G para comer)">
+                🍖{foodCount}<span className="hide-on-touch"> G</span>
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -143,7 +150,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
         <div className="text-center mt-1 hide-on-touch">
           <span className="text-[10px] font-game text-muted-foreground">
             {inventory.equippedItem ? ITEM_CONFIG[inventory.equippedItem].label : 'Mão vazia'}
-            {' • '}F poder • Q troca • E craftar • B loja • R ranking • V câmera • T chat
+            {' • '}F poder • Q troca • G comer • E craftar • B loja • R ranking • V câmera • T chat
           </span>
         </div>
       </div>
@@ -200,7 +207,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
       {hunger <= 20 && hunger > 0 && (
         <div className="absolute top-16 left-1/2 -translate-x-1/2">
           <div className="bg-orange-900/40 backdrop-blur-sm rounded-lg px-3 py-1.5 border border-orange-500/30">
-            <span className="text-xs font-game text-orange-300 animate-pulse">🍗 Fome! Colete frutas ou mate animais!</span>
+            <span className="text-xs font-game text-orange-300 animate-pulse">{foodCount > 0 ? '🍗 Fome! Aperte G para comer' : '🍗 Fome! Mate animais para conseguir carne'}</span>
           </div>
         </div>
       )}

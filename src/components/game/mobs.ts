@@ -1,4 +1,5 @@
 import { World } from './world';
+import { ItemType } from './types';
 import { WORLD_HALF, WATER_LEVEL } from './biomes';
 
 export type MobType = 'zombie' | 'skeleton' | 'spider' | 'cow' | 'pig' | 'chicken' | 'sheep' | 'villager' | 'guardian';
@@ -110,3 +111,11 @@ export function spawnGuardians(fruits: { id: string; position: [number, number, 
     };
   });
 }
+
+/** Comida que cada animal deixa ao morrer: [item, quantidade mínima, máxima]. */
+export const ANIMAL_FOOD: Partial<Record<MobType, [ItemType, number, number]>> = {
+  cow: ['beef', 1, 3],
+  pig: ['porkchop', 1, 3],
+  sheep: ['mutton', 1, 2],
+  chicken: ['chicken_meat', 1, 2],
+};

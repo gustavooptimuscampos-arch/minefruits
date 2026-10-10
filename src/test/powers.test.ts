@@ -35,3 +35,20 @@ describe('poderes para sempre', () => {
     }
   });
 });
+
+import { ANIMAL_FOOD } from '@/components/game/mobs';
+import { FOOD_VALUES, ITEM_CONFIG } from '@/components/game/types';
+
+describe('comida dos animais', () => {
+  it('todo animal deixa uma comida que mata a fome', () => {
+    for (const animal of ['cow', 'pig', 'sheep', 'chicken'] as const) {
+      const drop = ANIMAL_FOOD[animal];
+      expect(drop, animal).toBeTruthy();
+      const [item, min, max] = drop!;
+      expect(ITEM_CONFIG[item]).toBeTruthy();
+      expect(FOOD_VALUES[item]).toBeGreaterThan(0);
+      expect(min).toBeGreaterThanOrEqual(1);
+      expect(max).toBeGreaterThanOrEqual(min);
+    }
+  });
+});

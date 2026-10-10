@@ -164,6 +164,7 @@ function MenuBar({ onExit }: { onExit?: () => void }) {
     ['🏆', 'Ranking', 'KeyR'],
     ['🎥', 'Câmera', 'KeyV'],
     ['💬', 'Chat', 'KeyT'],
+    ['🍖', 'Comer', 'KeyG'],
   ];
   const btn = 'h-9 min-w-9 px-2 rounded-lg bg-background/60 backdrop-blur-sm border border-border/60 text-base active:scale-90 transition-transform';
   return (

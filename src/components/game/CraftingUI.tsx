@@ -1,13 +1,15 @@
-import { CRAFT_RECIPES, ITEM_CONFIG, Item, ItemType } from './types';
+import { CRAFT_RECIPES, FOOD_VALUES, ITEM_CONFIG, Item, ItemType } from './types';
 
 interface CraftingUIProps {
   items: Item[];
   canCraft: (index: number) => boolean;
   onCraft: (index: number) => void;
+  /** Comer uma comida do inventário. */
+  onEat?: (type: ItemType) => void;
   onClose: () => void;
 }
 
-export function CraftingUI({ items, canCraft, onCraft, onClose }: CraftingUIProps) {
+export function CraftingUI({ items, canCraft, onCraft, onEat, onClose }: CraftingUIProps) {
   const categories = ['weapon', 'tool', 'block', 'misc'] as const;
   const categoryLabels = { weapon: '⚔️ Armas', tool: '⛏️ Ferramentas', block: '🧱 Blocos', misc: '📦 Outros' };
 
@@ -31,11 +33,24 @@ export function CraftingUI({ items, canCraft, onCraft, onClose }: CraftingUIProp
               items.map(item => {
                 const config = ITEM_CONFIG[item.type];
                 return (
-                  <div key={item.type} title={config.label} className="flex items-center gap-1 bg-background/60 rounded px-2 py-1 border border-border/30">
+                  FOOD_VALUES[item.type] && onEat ? (
+                    <button
+                      key={item.type}
+                      title={`Comer ${config.label} (+${FOOD_VALUES[item.type]} de fome)`}
+                      onClick={() => onEat(item.type)}
+                      className="flex items-center gap-1 bg-orange-900/30 hover:bg-orange-800/40 rounded px-2 py-1 border border-orange-400/40"
+                    >
+                      <span className="text-sm">{config.emoji}</span>
+                      <span className="text-xs font-game text-foreground">{item.count}</span>
+                      <span className="text-[10px] font-game text-orange-200">{config.label} · Comer</span>
+                    </button>
+                  ) : (
+                    <div key={item.type} title={config.label} className="flex items-center gap-1 bg-background/60 rounded px-2 py-1 border border-border/30">
                     <span className="text-sm">{config.emoji}</span>
                     <span className="text-xs font-game text-foreground">{item.count}</span>
                     <span className="text-[10px] font-game text-muted-foreground">{config.label}</span>
                   </div>
+                  )
                 );
               })
             )}

@@ -20,7 +20,9 @@ export type ItemType =
   | 'door' | 'crafting_table'
   // Blocos que vão para o inventário ao quebrar
   | 'dirt' | 'sand' | 'sandstone' | 'snow' | 'leaves' | 'cactus' | 'ice' | 'flower'
-  | 'glowstone' | 'netherrack' | 'nether_brick';
+  | 'glowstone' | 'netherrack' | 'nether_brick'
+  // Comida que os animais deixam
+  | 'beef' | 'porkchop' | 'chicken_meat' | 'mutton';
 
 export interface Item {
   type: ItemType;
@@ -144,6 +146,18 @@ export const ITEM_CONFIG: Record<ItemType, { label: string; emoji: string; color
   glowstone: { label: 'Pedra Luminosa', emoji: '✨', color: '#FFE082' },
   netherrack: { label: 'Netherrack', emoji: '🟥', color: '#B71C1C' },
   nether_brick: { label: 'Tijolo do Nether', emoji: '🧱', color: '#5D1A1A' },
+  beef: { label: 'Carne de Vaca', emoji: '🥩', color: '#b33a3a' },
+  porkchop: { label: 'Carne de Porco', emoji: '🍖', color: '#e08a7a' },
+  chicken_meat: { label: 'Frango', emoji: '🍗', color: '#f2c8a0' },
+  mutton: { label: 'Carne de Ovelha', emoji: '🍖', color: '#c9705a' },
+};
+
+/** Quanto cada comida enche a barra de fome. */
+export const FOOD_VALUES: Partial<Record<ItemType, number>> = {
+  beef: 35,
+  porkchop: 30,
+  mutton: 25,
+  chicken_meat: 20,
 };
 
 export const CRAFT_RECIPES: CraftRecipe[] = [

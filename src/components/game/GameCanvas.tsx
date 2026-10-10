@@ -12,8 +12,8 @@ import { RemotePlayersRenderer } from './RemotePlayersRenderer';
 import { GameHUD } from './GameHUD';
 import { CraftingUI } from './CraftingUI';
 import { GameChat, ChatMessage } from './GameChat';
-import { FruitType, MINING_REQUIREMENTS, BLOCK_DROPS, UNBREAKABLE, TOOL_DAMAGE, ITEM_CONFIG, AccessoryType, SHOP_ITEMS, FRUIT_CONFIG, Fruit, GameCoin } from './types';
-import { MobData, MOB_CONFIG, spawnMobs, spawnGuardians } from './mobs';
+import { FruitType, FOOD_VALUES, ItemType, MINING_REQUIREMENTS, BLOCK_DROPS, UNBREAKABLE, TOOL_DAMAGE, ITEM_CONFIG, AccessoryType, SHOP_ITEMS, FRUIT_CONFIG, Fruit, GameCoin } from './types';
+import { MobData, MOB_CONFIG, spawnMobs, spawnGuardians, ANIMAL_FOOD } from './mobs';
 import { SkinData } from './skins';
 import { useMultiplayer } from './useMultiplayer';
 import { useInventory } from './useInventory';
@@ -85,7 +85,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
   const [now, setNow] = useState(() => performance.now());
 
   const inventory = useInventory();
-  const { craftingOpen, setCraftingOpen, setSelectedSlot, equippedItem, collectBlock } = inventory;
+  const { craftingOpen, setCraftingOpen, setSelectedSlot, equippedItem, collectBlock, addItem, removeItem, items: inventoryItems } = inventory;
 
   const isMultiplayer = !!multiplayer;
   const mp = useMultiplayer({
@@ -265,6 +265,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
       }
       if (e.code === 'KeyF') usePowerRef.current();
       if (e.code === 'KeyQ') cyclePowerRef.current();
+      if (e.code === 'KeyG') eatRef.current();
       if (e.code >= 'Digit1' && e.code <= 'Digit9') {
         setSelectedSlot(parseInt(e.code.replace('Digit', '')) - 1);
       }
@@ -375,13 +376,37 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
       if (existing) return prev.map(e => e === existing ? { ...e, count: e.count + 1, points: e.points + pts } : e);
       return [...prev, { type: 'mob', name: config.label, emoji: config.label.split(' ')[0], points: pts, count: 1 }];
     });
-    // Animais deixam comida (recupera fome)
-    if (!mob.hostile) setHunger(h => Math.min(100, h + 15));
+    // Animais deixam comida no inventário (aperte G para comer)
+    const food = ANIMAL_FOOD[mob.type];
+    if (food) {
+      const [item, min, max] = food;
+      const amount = min + Math.floor(Math.random() * (max - min + 1));
+      addItem(item, amount);
+      showNotice(`+${amount} ${ITEM_CONFIG[item].emoji} ${ITEM_CONFIG[item].label} — aperte G para comer`);
+    }
     if (mob.type === 'guardian') {
       setVoxelCoins(c => c + 10);
       showNotice('🛡️ Guardião derrotado! A fruta está livre');
     }
-  }, [applyMobs, showNotice]);
+  }, [applyMobs, showNotice, addItem]);
+
+  /** Come uma comida do inventário (a que mais enche, ou a escolhida). */
+  const eat = useCallback((chosen?: ItemType) => {
+    const foods = inventoryItems
+      .filter(i => FOOD_VALUES[i.type] && i.count > 0)
+      .sort((a, b) => (FOOD_VALUES[b.type] ?? 0) - (FOOD_VALUES[a.type] ?? 0));
+    const pick = chosen ? foods.find(f => f.type === chosen) : foods[0];
+    if (!pick) { showNotice('🍖 Sem comida. Mate animais para conseguir carne'); return; }
+    if (hungerRef.current >= 100) { showNotice('😋 Você está sem fome'); return; }
+    removeItem(pick.type, 1);
+    setHunger(h => Math.min(100, h + (FOOD_VALUES[pick.type] ?? 0)));
+    showNotice(`😋 Comeu ${ITEM_CONFIG[pick.type].emoji} ${ITEM_CONFIG[pick.type].label}`);
+  }, [inventoryItems, removeItem, showNotice]);
+  const eatRef = useRef(eat);
+  eatRef.current = eat;
+  const hungerRef = useRef(hunger);
+  hungerRef.current = hunger;
+  const foodCount = inventoryItems.reduce((n, i) => n + (FOOD_VALUES[i.type] ? i.count : 0), 0);
 
   /** Usa o poder da fruta (tecla F ou botão ✨ no celular). */
   const usePower = useCallback(() => {
@@ -552,7 +577,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
 
       <GameHUD
         score={score} collectedFruits={collectedFruits} blocksDestroyed={blocksDestroyed}
-        playerHealth={playerHealth} hunger={hunger} isNight={isNight} mobsKilled={mobsKilled}
+        playerHealth={playerHealth} hunger={hunger} isNight={isNight} mobsKilled={mobsKilled} foodCount={foodCount}
         roomCode={multiplayer?.roomCode}
         playersOnline={isMultiplayer ? mp.remotePlayers.length + 1 : undefined}
         inventory={inventory} voxelCoins={voxelCoins} locked={locked || anyOverlay}
@@ -574,7 +599,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
       )}
 
       {inventory.craftingOpen && (
-        <CraftingUI items={inventory.items} canCraft={inventory.canCraft} onCraft={inventory.craft} onClose={() => setCraftingOpen(false)} />
+        <CraftingUI items={inventory.items} canCraft={inventory.canCraft} onCraft={inventory.craft} onEat={(t) => eat(t)} onClose={() => setCraftingOpen(false)} />
       )}
 
       <GameChat
