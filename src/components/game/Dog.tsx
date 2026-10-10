@@ -1,8 +1,7 @@
 import { useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
-import { BlockType } from './types';
-import { getGroundHeight } from './terrainGenerator';
+import { World } from './world';
 import { playerPosition, mobRegistry } from './playerState';
 
 const FUR = '#d9d4cc';
@@ -25,7 +24,7 @@ function Box({ size, pos = [0, 0, 0], color }: { size: [number, number, number];
 }
 
 /** Cachorro companheiro invencível: segue o jogador e ataca todos os monstros próximos de uma vez. */
-export function Dog({ blocks, onMobHit }: { blocks: Record<string, BlockType>; onMobHit: (id: string, dmg: number) => void }) {
+export function Dog({ world, onMobHit }: { world: World; onMobHit: (id: string, dmg: number) => void }) {
   const root = useRef<THREE.Group>(null);
   const legs = useRef<(THREE.Group | null)[]>([]);
   const tail = useRef<THREE.Group>(null);
@@ -105,7 +104,10 @@ export function Dog({ blocks, onMobHit }: { blocks: Record<string, BlockType>; o
       (ring.current.material as THREE.MeshBasicMaterial).opacity = 0.6 * (1 - k);
     }
 
-    pos.y = getGroundHeight(pos.x, pos.z, blocks);
+    // Se o jogador está numa caverna, o cachorro anda no chão da caverna; senão, na superfície
+    const playerFeet = player.y - 1.7;
+    const underground = playerFeet < world.groundHeight(player.x, player.z) - 3;
+    pos.y = underground ? world.floorBelow(pos.x, playerFeet + 1.5, pos.z) : world.groundHeight(pos.x, pos.z);
 
     // Animação
     const m = moving.current;

@@ -1,11 +1,15 @@
-import { useMemo, useRef } from 'react';
+import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { BlockType, BLOCK_COLORS } from './types';
+import { BLOCK_COLORS, GRASS_BLOCKS } from './types';
 import { lightState } from './lightState';
+import { BLOCK_TYPES, World, WATER_ID } from './world';
+import { WATER_LEVEL } from './biomes';
 
 interface TerrainProps {
-  blocks: Record<string, BlockType>;
+  world: World;
+  /** Muda quando algum bloco muda; cada chunk só se redesenha se for o dele. */
+  version: number;
 }
 
 type Vec3 = [number, number, number];
@@ -35,110 +39,118 @@ function tint(x: number, y: number, z: number) {
   return 0.92 + (n - Math.floor(n)) * 0.16;
 }
 
-const TRANSPARENT: Record<string, boolean> = { water: true, leaves: true, flower: true };
+// Tabelas por id de bloco (mais rápido que comparar textos no meio do desenho)
+const TRANSPARENT_TYPES = new Set(['water', 'leaves', 'flower', 'spruce_leaves', 'jungle_leaves', 'acacia_leaves']);
+const TRANSPARENT_ID: boolean[] = [false, ...BLOCK_TYPES.map(t => TRANSPARENT_TYPES.has(t))];
+const GRASS_ID: boolean[] = [false, ...BLOCK_TYPES.map(t => GRASS_BLOCKS.includes(t))];
+const COLOR_ID: THREE.Color[] = [new THREE.Color(), ...BLOCK_TYPES.map(t => new THREE.Color(BLOCK_COLORS[t] || '#808080'))];
+const DIRT = new THREE.Color(BLOCK_COLORS.dirt);
 
-function isSolid(blocks: Record<string, BlockType>, x: number, y: number, z: number) {
-  const b = blocks[`${x},${y},${z}`];
-  return !!b && !TRANSPARENT[b];
-}
-
-function buildMeshes(blocks: Record<string, BlockType>) {
-  const solid: Record<string, { pos: number[]; col: number[]; idx: number[] }> = {};
+function buildChunk(world: World, cx: number, cz: number) {
+  const opaque = { pos: [] as number[], col: [] as number[], idx: [] as number[] };
+  const leafy = { pos: [] as number[], col: [] as number[], idx: [] as number[] };
   const water: number[] = [];
   const waterCol: number[] = [];
   const waterIdx: number[] = [];
-
   const color = new THREE.Color();
-  const dirt = new THREE.Color(BLOCK_COLORS.dirt || '#8B5A2B');
 
-  Object.entries(blocks).forEach(([key, type]) => {
-    const [x, y, z] = key.split(',').map(Number);
+  const solidAt = (x: number, y: number, z: number) => {
+    const id = world.getId(x, y, z);
+    return id !== 0 && !TRANSPARENT_ID[id];
+  };
 
-    if (type === 'water') {
-      // only render the top surface of water bodies
-      if (blocks[`${x},${y + 1},${z}`] === 'water') return;
-      const base = water.length / 3;
-      const h = 0.86;
-      water.push(x, y + h, z, x + 1, y + h, z, x + 1, y + h, z + 1, x, y + h, z + 1);
-      for (let i = 0; i < 4; i++) waterCol.push(0.16, 0.45, 0.78);
-      waterIdx.push(base, base + 2, base + 1, base, base + 3, base + 2);
-      return;
-    }
+  const { x0, z0, x1, z1 } = world.chunkBounds(cx, cz);
+  const maxY = world.chunkMaxY(cx, cz, WATER_LEVEL);
 
-    const baseColor = new THREE.Color(BLOCK_COLORS[type] || '#808080');
-    const t = tint(x, y, z);
-    const bucketKey = TRANSPARENT[type] ? `${type}__t` : 'opaque';
-    if (!solid[bucketKey]) solid[bucketKey] = { pos: [], col: [], idx: [] };
-    const bucket = solid[bucketKey];
+  for (let x = x0; x < x1; x++) {
+    for (let z = z0; z < z1; z++) {
+      const surface = world.groundHeight(x, z);
+      for (let y = 0; y <= maxY; y++) {
+        const id = world.getId(x, y, z);
+        if (!id) continue;
 
-    for (const face of FACES) {
-      const nx = x + face.n[0], ny = y + face.n[1], nz = z + face.n[2];
-      const neighbour = blocks[`${nx},${ny},${nz}`];
-      // hide faces touching another opaque block of interest
-      if (neighbour && !TRANSPARENT[neighbour]) continue;
-      if (neighbour && TRANSPARENT[neighbour] && TRANSPARENT[type] && neighbour === type) continue;
+        if (id === WATER_ID) {
+          // only render the top surface of water bodies
+          if (world.getId(x, y + 1, z) === WATER_ID) continue;
+          const base = water.length / 3;
+          const h = 0.86;
+          water.push(x, y + h, z, x + 1, y + h, z, x + 1, y + h, z + 1, x, y + h, z + 1);
+          for (let i = 0; i < 4; i++) waterCol.push(0.16, 0.45, 0.78);
+          waterIdx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+          continue;
+        }
 
-      // grass blocks fade to dirt on their sides
-      color.copy(baseColor);
-      if (type === 'grass' && face.n[1] === 0) color.lerp(dirt, 0.45);
-      if (type === 'grass' && face.n[1] === -1) color.copy(dirt);
+        const transparent = TRANSPARENT_ID[id];
+        const bucket = transparent ? leafy : opaque;
+        const t = tint(x, y, z);
+        // Quanto mais fundo, mais escuro (cavernas e ravinas ficam sombrias)
+        const depth = surface - 1 - y;
+        const dark = depth > 4 ? Math.max(0.42, 1 - (depth - 4) / 26) : 1;
 
-      const start = bucket.pos.length / 3;
-      const aos: number[] = [];
+        for (const face of FACES) {
+          const nx = x + face.n[0], ny = y + face.n[1], nz = z + face.n[2];
+          if (ny < 0) continue; // fundo do mundo nunca aparece
+          const nid = world.getId(nx, ny, nz);
+          // hide faces touching another opaque block
+          if (nid && !TRANSPARENT_ID[nid]) continue;
+          if (nid && transparent && nid === id) continue;
 
-      for (const [du, dv] of CORNERS) {
-        const px = x + 0.5 + face.n[0] * 0.5 + (face.u[0] * du + face.v[0] * dv) * 0.5;
-        const py = y + 0.5 + face.n[1] * 0.5 + (face.u[1] * du + face.v[1] * dv) * 0.5;
-        const pz = z + 0.5 + face.n[2] * 0.5 + (face.u[2] * du + face.v[2] * dv) * 0.5;
-        bucket.pos.push(px, py, pz);
+          // grass blocks fade to dirt on their sides
+          color.copy(COLOR_ID[id]);
+          if (GRASS_ID[id] && face.n[1] === 0) color.lerp(DIRT, 0.45);
+          if (GRASS_ID[id] && face.n[1] === -1) color.copy(DIRT);
 
-        // classic voxel ambient occlusion
-        const s1 = isSolid(blocks, nx + face.u[0] * du, ny + face.u[1] * du, nz + face.u[2] * du);
-        const s2 = isSolid(blocks, nx + face.v[0] * dv, ny + face.v[1] * dv, nz + face.v[2] * dv);
-        const cr = isSolid(
-          blocks,
-          nx + face.u[0] * du + face.v[0] * dv,
-          ny + face.u[1] * du + face.v[1] * dv,
-          nz + face.u[2] * du + face.v[2] * dv,
-        );
-        const level = s1 && s2 ? 0 : 3 - (Number(s1) + Number(s2) + Number(cr));
-        const ao = 0.55 + (level / 3) * 0.45;
-        aos.push(ao);
+          const start = bucket.pos.length / 3;
+          const aos: number[] = [];
 
-        const k = face.shade * t * ao;
-        bucket.col.push(color.r * k, color.g * k, color.b * k);
+          for (const [du, dv] of CORNERS) {
+            const px = x + 0.5 + face.n[0] * 0.5 + (face.u[0] * du + face.v[0] * dv) * 0.5;
+            const py = y + 0.5 + face.n[1] * 0.5 + (face.u[1] * du + face.v[1] * dv) * 0.5;
+            const pz = z + 0.5 + face.n[2] * 0.5 + (face.u[2] * du + face.v[2] * dv) * 0.5;
+            bucket.pos.push(px, py, pz);
+
+            // classic voxel ambient occlusion
+            const s1 = solidAt(nx + face.u[0] * du, ny + face.u[1] * du, nz + face.u[2] * du);
+            const s2 = solidAt(nx + face.v[0] * dv, ny + face.v[1] * dv, nz + face.v[2] * dv);
+            const cr = solidAt(
+              nx + face.u[0] * du + face.v[0] * dv,
+              ny + face.u[1] * du + face.v[1] * dv,
+              nz + face.u[2] * du + face.v[2] * dv,
+            );
+            const level = s1 && s2 ? 0 : 3 - (Number(s1) + Number(s2) + Number(cr));
+            const ao = 0.55 + (level / 3) * 0.45;
+            aos.push(ao);
+
+            const k = face.shade * t * ao * dark;
+            bucket.col.push(color.r * k, color.g * k, color.b * k);
+          }
+
+          // flip quad diagonal to avoid AO artefacts
+          if (aos[0] + aos[2] > aos[1] + aos[3]) {
+            bucket.idx.push(start, start + 1, start + 2, start, start + 2, start + 3);
+          } else {
+            bucket.idx.push(start + 1, start + 2, start + 3, start + 1, start + 3, start);
+          }
+        }
       }
-
-      // flip quad diagonal to avoid AO artefacts
-      if (aos[0] + aos[2] > aos[1] + aos[3]) {
-        bucket.idx.push(start, start + 1, start + 2, start, start + 2, start + 3);
-      } else {
-        bucket.idx.push(start + 1, start + 2, start + 3, start + 1, start + 3, start);
-      }
     }
-  });
-
-  const meshes: { key: string; geo: THREE.BufferGeometry; transparent: boolean }[] = [];
-  Object.entries(solid).forEach(([key, b]) => {
-    if (b.pos.length === 0) return;
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute('position', new THREE.Float32BufferAttribute(b.pos, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(b.col, 3));
-    geo.setIndex(b.idx);
-    geo.computeBoundingSphere();
-    meshes.push({ key, geo, transparent: key.endsWith('__t') });
-  });
-
-  let waterGeo: THREE.BufferGeometry | null = null;
-  if (water.length) {
-    waterGeo = new THREE.BufferGeometry();
-    waterGeo.setAttribute('position', new THREE.Float32BufferAttribute(water, 3));
-    waterGeo.setAttribute('color', new THREE.Float32BufferAttribute(waterCol, 3));
-    waterGeo.setIndex(waterIdx);
-    waterGeo.computeBoundingSphere();
   }
 
-  return { meshes, waterGeo };
+  const toGeo = (pos: number[], col: number[], idx: number[]) => {
+    if (!pos.length) return null;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    geo.setIndex(idx);
+    geo.computeBoundingSphere();
+    return geo;
+  };
+
+  return {
+    opaque: toGeo(opaque.pos, opaque.col, opaque.idx),
+    leafy: toGeo(leafy.pos, leafy.col, leafy.idx),
+    water: toGeo(water, waterCol, waterIdx),
+  };
 }
 
 function Water({ geometry }: { geometry: THREE.BufferGeometry }) {
@@ -149,19 +161,19 @@ function Water({ geometry }: { geometry: THREE.BufferGeometry }) {
     ref.current.position.y = Math.sin(t * 1.2) * 0.05;
   });
   return (
-    <mesh ref={ref} geometry={geometry} frustumCulled={false} renderOrder={2}>
+    <mesh ref={ref} geometry={geometry} renderOrder={2}>
       <meshBasicMaterial vertexColors transparent opacity={0.72} depthWrite={false} side={THREE.DoubleSide} />
     </mesh>
   );
 }
 
-function TerrainChunk({ geometry, transparent }: { geometry: THREE.BufferGeometry; transparent: boolean }) {
+function ChunkMesh({ geometry, transparent }: { geometry: THREE.BufferGeometry; transparent: boolean }) {
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
   useFrame(() => {
     if (matRef.current) matRef.current.color.copy(lightState.tint);
   });
   return (
-    <mesh geometry={geometry} frustumCulled={false}>
+    <mesh geometry={geometry}>
       <meshBasicMaterial
         ref={matRef}
         vertexColors
@@ -173,15 +185,33 @@ function TerrainChunk({ geometry, transparent }: { geometry: THREE.BufferGeometr
   );
 }
 
-export function Terrain({ blocks }: TerrainProps) {
-  const { meshes, waterGeo } = useMemo(() => buildMeshes(blocks), [blocks]);
-
+/** Um pedaço 16x16 do mapa. Só é redesenhado quando um bloco dele muda. */
+function Chunk({ world, cx, cz, version }: { world: World; cx: number; cz: number; version: number }) {
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- "version" é o que avisa que o chunk mudou
+  const geos = useMemo(() => buildChunk(world, cx, cz), [world, cx, cz, version]);
+  useEffect(() => () => {
+    geos.opaque?.dispose();
+    geos.leafy?.dispose();
+    geos.water?.dispose();
+  }, [geos]);
   return (
     <>
-      {meshes.map(({ key, geo, transparent }) => (
-        <TerrainChunk key={key} geometry={geo} transparent={transparent} />
+      {geos.opaque && <ChunkMesh geometry={geos.opaque} transparent={false} />}
+      {geos.leafy && <ChunkMesh geometry={geos.leafy} transparent />}
+      {geos.water && <Water geometry={geos.water} />}
+    </>
+  );
+}
+
+/** Recebe "version" só para redesenhar quando algo muda; cada Chunk confere a sua. */
+export function Terrain({ world }: TerrainProps) {
+  const chunks: [number, number][] = [];
+  for (let cx = 0; cx < world.chunksPerSide; cx++) for (let cz = 0; cz < world.chunksPerSide; cz++) chunks.push([cx, cz]);
+  return (
+    <>
+      {chunks.map(([cx, cz]) => (
+        <Chunk key={`${cx},${cz}`} world={world} cx={cx} cz={cz} version={world.chunkVersion(cx, cz)} />
       ))}
-      {waterGeo && <Water geometry={waterGeo} />}
     </>
   );
 }

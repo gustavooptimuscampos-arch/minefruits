@@ -1,5 +1,5 @@
-import { BlockType } from './types';
-import { getGroundHeight } from './terrainGenerator';
+import { World } from './world';
+import { WORLD_HALF, WATER_LEVEL } from './biomes';
 
 export type MobType = 'zombie' | 'skeleton' | 'spider' | 'cow' | 'pig' | 'chicken' | 'sheep' | 'villager';
 
@@ -33,19 +33,19 @@ export const MOB_CONFIG: Record<MobType, {
   villager: { color: '#c4956a', eyeColor: '#5a3a1a', health: 20, speed: 1, hostile: false, bodyScale: [0.5, 1.1, 0.35], label: '👤 Aldeão' },
 };
 
-export function spawnMobs(blocks: Record<string, BlockType>, isNight: boolean): MobData[] {
+export function spawnMobs(world: World, isNight: boolean): MobData[] {
   const mobs: MobData[] = [];
-  const half = 14;
+  const half = WORLD_HALF - 3;
 
   // Animals & villagers always
   const passiveTypes: MobType[] = ['cow', 'pig', 'sheep', 'chicken', 'cow', 'sheep', 'pig', 'villager'];
-  for (let i = 0; i < 16; i++) {
+  for (let i = 0; i < 56; i++) {
     const type = passiveTypes[i % passiveTypes.length];
     const config = MOB_CONFIG[type];
     const x = (Math.random() - 0.5) * half * 2;
     const z = (Math.random() - 0.5) * half * 2;
-    const groundY = getGroundHeight(x, z, blocks);
-    if (groundY <= 2) continue; // skip water
+    const groundY = world.groundHeight(x, z);
+    if (groundY <= WATER_LEVEL) continue; // não nasce na água
     mobs.push({
       id: `mob-passive-${i}`,
       type,
@@ -61,13 +61,13 @@ export function spawnMobs(blocks: Record<string, BlockType>, isNight: boolean): 
   // Monsters only at night
   if (isNight) {
     const hostileTypes: MobType[] = ['zombie', 'skeleton', 'spider'];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 34; i++) {
       const type = hostileTypes[i % hostileTypes.length];
       const config = MOB_CONFIG[type];
       const x = (Math.random() - 0.5) * half * 2;
       const z = (Math.random() - 0.5) * half * 2;
-      const groundY = getGroundHeight(x, z, blocks);
-      if (groundY <= 2) continue;
+      const groundY = world.groundHeight(x, z);
+      if (groundY <= WATER_LEVEL) continue;
       mobs.push({
         id: `mob-hostile-${i}`,
         type,

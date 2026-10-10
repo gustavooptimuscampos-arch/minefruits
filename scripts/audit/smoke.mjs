@@ -55,6 +55,7 @@ export async function runSmoke() {
     }
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
     page.setDefaultTimeout(5000);
+    page.setDefaultNavigationTimeout(30000);
     const pageErrors = [];
     const consoleErrors = [];
     page.on('pageerror', (e) => pageErrors.push(e.message));

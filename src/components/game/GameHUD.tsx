@@ -22,11 +22,13 @@ interface GameHUDProps {
   locked?: boolean;
   /** Total de frutas do mapa (antes o HUD mostrava "/10" fixo). */
   totalFruits?: number;
+  /** Nome do bioma onde o jogador está (ex.: "🏜️ Deserto"). */
+  biome?: string;
   /** Abre o menu de pausa (de lá o jogador pode sair). */
   onPause?: () => void;
 }
 
-export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, hunger, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false, totalFruits, onPause }: GameHUDProps) {
+export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, hunger, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false, totalFruits, biome, onPause }: GameHUDProps) {
   return (
     <div className="absolute inset-0 pointer-events-none select-none" style={{ zIndex: 10 }}>
       {/* Crosshair */}
@@ -60,6 +62,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
       {/* Stats */}
       <div className="absolute top-4 left-4 hud-corner-left">
         <div className="bg-background/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-border/50 space-y-1">
+          {biome && <div className="text-sm font-game text-foreground">{biome}</div>}
           <div className="text-sm font-game text-muted-foreground">⛏️ Blocos: <span className="text-foreground">{blocksDestroyed}</span></div>
           <div className="text-sm font-game text-muted-foreground">🍎 Frutas: <span className="text-foreground">{collectedFruits.length}{totalFruits ? ` de ${totalFruits}` : ''}</span></div>
           <div className="text-sm font-game text-muted-foreground">💀 Mobs: <span className="text-foreground">{mobsKilled}</span></div>

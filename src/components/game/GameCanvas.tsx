@@ -12,7 +12,7 @@ import { RemotePlayersRenderer } from './RemotePlayersRenderer';
 import { GameHUD } from './GameHUD';
 import { CraftingUI } from './CraftingUI';
 import { GameChat, ChatMessage } from './GameChat';
-import { FruitType, MINING_REQUIREMENTS, TOOL_DAMAGE, ITEM_CONFIG, AccessoryType, SHOP_ITEMS, FRUIT_CONFIG, Fruit, GameCoin } from './types';
+import { FruitType, MINING_REQUIREMENTS, BLOCK_DROPS, UNBREAKABLE, TOOL_DAMAGE, ITEM_CONFIG, AccessoryType, SHOP_ITEMS, FRUIT_CONFIG, Fruit, GameCoin } from './types';
 import { MobData, MOB_CONFIG, spawnMobs } from './mobs';
 import { SkinData } from './skins';
 import { useMultiplayer } from './useMultiplayer';
@@ -24,6 +24,8 @@ import { MOB_POINTS, FRUIT_POINTS, FRUIT_HUNGER, ScoreEntry } from './scoring';
 import { TouchControls } from './TouchControls';
 import { isTouchDevice } from './touchInput';
 import { isTypingTarget } from './keyboard';
+import { BIOMES, BiomeId, biomeAt, buildBiomeLayout, seedFromString } from './biomes';
+import { playerPosition } from './playerState';
 
 interface GameCanvasProps {
   skin: SkinData;
@@ -32,11 +34,16 @@ interface GameCanvasProps {
 }
 
 export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
-  const initialBlocks = useMemo(() => generateTerrain(20), []);
-  const [blocks, setBlocks] = useState(initialBlocks);
-  const initialFruits = useMemo(() => generateFruits(initialBlocks), [initialBlocks]);
+  // Solo: mapa novo a cada partida. Multiplayer: a semente vem do código da sala,
+  // então todos na sala recebem a mesma ilha.
+  const [worldSeed] = useState(() => (multiplayer ? seedFromString(multiplayer.roomCode) : Math.floor(Math.random() * 1e9)));
+  const biomeLayout = useMemo(() => buildBiomeLayout(worldSeed), [worldSeed]);
+  // O mundo é um objeto que muda no lugar; "worldVersion" avisa o React para redesenhar
+  const world = useMemo(() => generateTerrain(biomeLayout), [biomeLayout]);
+  const [worldVersion, setWorldVersion] = useState(0);
+  const initialFruits = useMemo(() => generateFruits(world, worldSeed), [world, worldSeed]);
   const [fruits, setFruits] = useState(initialFruits);
-  const initialCoins = useMemo(() => generateCoins(initialBlocks), [initialBlocks]);
+  const initialCoins = useMemo(() => generateCoins(world, worldSeed), [world, worldSeed]);
   const [coins, setCoins] = useState(initialCoins);
   const [voxelCoins, setVoxelCoins] = useState(0);
   const [shopOpen, setShopOpen] = useState(false);
@@ -61,6 +68,7 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
   const [dead, setDead] = useState(false);
   const [respawnKey, setRespawnKey] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
+  const [biome, setBiome] = useState<BiomeId>('plains');
 
   const inventory = useInventory();
   const { craftingOpen, setCraftingOpen, setSelectedSlot, equippedItem, collectBlock } = inventory;
@@ -100,6 +108,19 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
     clearTimeout(noticeTimer.current);
     noticeTimer.current = setTimeout(() => setNotice(null), 2200);
   }, []);
+
+  // Bioma onde o jogador está: atualiza o HUD e avisa ao entrar num bioma novo
+  useEffect(() => {
+    let current: BiomeId | null = null;
+    const id = setInterval(() => {
+      const next = biomeAt(playerPosition.x, playerPosition.z, biomeLayout);
+      if (next === current) return;
+      if (current !== null) showNotice(`${BIOMES[next].emoji} ${BIOMES[next].name}`);
+      current = next;
+      setBiome(next);
+    }, 400);
+    return () => clearInterval(id);
+  }, [biomeLayout, showNotice]);
 
   /** Solta o mouse para mexer num menu, sem que isso abra a pausa. */
   const releasePointer = useCallback(() => {
@@ -161,18 +182,18 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
 
   useEffect(() => {
     if (!spawnedRef.current) {
-      applyMobs(spawnMobs(blocks, false));
+      applyMobs(spawnMobs(world, false));
       spawnedRef.current = true;
     }
-  }, [blocks, applyMobs]);
+  }, [world, applyMobs]);
 
   const handleTimeChange = useCallback((_time: number, night: boolean) => {
     if (night !== wasNightRef.current) {
       wasNightRef.current = night;
       setIsNight(night);
-      applyMobs(spawnMobs(blocks, night));
+      applyMobs(spawnMobs(world, night));
     }
-  }, [blocks, applyMobs]);
+  }, [world, applyMobs]);
 
   // Se o mouse foi solto sem ser por um menu (ex.: ESC), abre a pausa
   useEffect(() => {
@@ -239,19 +260,28 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
   }, [releasePointer]);
 
   const handleBlockBreak = useCallback((key: string) => {
-    const blockType = blocks[key];
-    if (!blockType) return;
+    const [bx, by, bz] = key.split(',').map(Number);
+    const blockType = world.get(bx, by, bz);
+    if (!blockType || blockType === 'water') return;
+    if (UNBREAKABLE.includes(blockType)) {
+      showNotice('🪨 Bedrock não quebra: é o fundo do mundo');
+      return;
+    }
     const requirements = MINING_REQUIREMENTS[blockType];
     if (requirements && (!equippedItem || !requirements.includes(equippedItem))) {
       // Antes não acontecia nada e parecia bug: agora o jogador sabe o que falta
       showNotice(`⛏️ Precisa de ${ITEM_CONFIG[requirements[0]].label} ou melhor`);
       return;
     }
+    // O bloco quebrado vai para o inventário
     collectBlock(blockType, equippedItem);
-    setBlocks(prev => { const next = { ...prev }; delete next[key]; return next; });
+    const drop = BLOCK_DROPS[blockType];
+    if (drop) showNotice(`+1 ${ITEM_CONFIG[drop].emoji} ${ITEM_CONFIG[drop].label}`);
+    world.set(bx, by, bz, null);
+    setWorldVersion(v => v + 1);
     setScore(s => s + 10);
     setBlocksDestroyed(d => d + 1);
-  }, [blocks, equippedItem, collectBlock, showNotice]);
+  }, [world, equippedItem, collectBlock, showNotice]);
 
   const handleFruitCollect = useCallback((id: string) => {
     const fruit = fruitsRef.current.find(f => f.id === id);
@@ -373,13 +403,13 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
       >
         <DayNightCycle onTimeChange={handleTimeChange} speed={0.000556} />
         <Weather />
-        <Terrain blocks={blocks} />
+        <Terrain world={world} version={worldVersion} />
         <Fruits fruits={fruits} />
         <CoinsRenderer coins={coins} />
-        <Dog blocks={blocks} onMobHit={handleMobHit} />
-        <MobsRenderer mobs={mobs} blocks={blocks} onPlayerDamage={handlePlayerDamage} />
+        <Dog world={world} onMobHit={handleMobHit} />
+        <MobsRenderer mobs={mobs} world={world} onPlayerDamage={handlePlayerDamage} />
         <Player
-          blocks={blocks} fruits={fruits} mobs={mobs} coins={coins} skin={effectiveSkin}
+          world={world} fruits={fruits} mobs={mobs} coins={coins} skin={effectiveSkin}
           onBlockBreak={handleBlockBreak} onFruitCollect={handleFruitCollect} onCoinCollect={handleCoinCollect}
           onMobHit={handlePlayerAttack} sendPosition={isMultiplayer ? mp.sendPosition : undefined}
           playerHealth={playerHealth} equippedItem={equippedItem}
@@ -398,6 +428,7 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
         playersOnline={isMultiplayer ? mp.remotePlayers.length + 1 : undefined}
         inventory={inventory} voxelCoins={voxelCoins} locked={locked || anyOverlay}
         totalFruits={fruits.length}
+        biome={`${BIOMES[biome].emoji} ${BIOMES[biome].name}`}
         onPause={() => { releasePointer(); setPaused(true); }}
       />
 

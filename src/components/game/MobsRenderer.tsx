@@ -2,29 +2,29 @@ import { useRef, useEffect } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { MobData, MOB_CONFIG } from './mobs';
-import { BlockType } from './types';
-import { getGroundHeight } from './terrainGenerator';
+import { World } from './world';
 import { AnimalModel, AnimalType, ANIMAL_TYPES } from './AnimalModel';
 import { playerPosition, mobRegistry } from './playerState';
+import { WORLD_HALF } from './biomes';
 
 
 interface MobsRendererProps {
   mobs: MobData[];
-  blocks: Record<string, BlockType>;
+  world: World;
   onPlayerDamage: (damage: number) => void;
 }
 
-export function MobsRenderer({ mobs, blocks, onPlayerDamage }: MobsRendererProps) {
+export function MobsRenderer({ mobs, world, onPlayerDamage }: MobsRendererProps) {
   return (
     <>
       {mobs.filter(m => !m.dead).map(mob => (
-        <MobMesh key={mob.id} mob={mob} blocks={blocks} onPlayerDamage={onPlayerDamage} />
+        <MobMesh key={mob.id} mob={mob} world={world} onPlayerDamage={onPlayerDamage} />
       ))}
     </>
   );
 }
 
-function MobMesh({ mob, blocks, onPlayerDamage }: { mob: MobData; blocks: Record<string, BlockType>; onPlayerDamage: (damage: number) => void }) {
+function MobMesh({ mob, world, onPlayerDamage }: { mob: MobData; world: World; onPlayerDamage: (damage: number) => void }) {
   const groupRef = useRef<THREE.Group>(null);
   const config = MOB_CONFIG[mob.type];
   const walkPhase = useRef(Math.random() * Math.PI * 2);
@@ -96,12 +96,12 @@ function MobMesh({ mob, blocks, onPlayerDamage }: { mob: MobData; blocks: Record
     }
 
     // Ground snap
-    const groundY = getGroundHeight(pos.x, pos.z, blocks);
+    const groundY = world.groundHeight(pos.x, pos.z);
     pos.y = isAnimal ? groundY : groundY + config.bodyScale[1] / 2;
 
     // Keep in bounds
-    pos.x = Math.max(-15, Math.min(15, pos.x));
-    pos.z = Math.max(-15, Math.min(15, pos.z));
+    pos.x = Math.max(-WORLD_HALF + 2, Math.min(WORLD_HALF - 2, pos.x));
+    pos.z = Math.max(-WORLD_HALF + 2, Math.min(WORLD_HALF - 2, pos.z));
   });
 
   const [bw, bh, bd] = config.bodyScale;

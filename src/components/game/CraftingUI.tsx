@@ -31,9 +31,10 @@ export function CraftingUI({ items, canCraft, onCraft, onClose }: CraftingUIProp
               items.map(item => {
                 const config = ITEM_CONFIG[item.type];
                 return (
-                  <div key={item.type} className="flex items-center gap-1 bg-background/60 rounded px-2 py-1 border border-border/30">
+                  <div key={item.type} title={config.label} className="flex items-center gap-1 bg-background/60 rounded px-2 py-1 border border-border/30">
                     <span className="text-sm">{config.emoji}</span>
                     <span className="text-xs font-game text-foreground">{item.count}</span>
+                    <span className="text-[10px] font-game text-muted-foreground">{config.label}</span>
                   </div>
                 );
               })

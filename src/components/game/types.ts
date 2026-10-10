@@ -2,7 +2,11 @@ export type BlockType =
   | 'grass' | 'dirt' | 'stone' | 'wood' | 'leaves' | 'sand' | 'water' | 'snow' | 'flower'
   | 'coal_ore' | 'iron_ore' | 'copper_ore' | 'gold_ore' | 'lapis_ore' | 'diamond_ore' | 'obsidian'
   | 'netherrack' | 'netherite_ore' | 'glowstone' | 'nether_brick'
-  | 'cobblestone' | 'planks' | 'torch' | 'door' | 'crafting_table';
+  | 'cobblestone' | 'planks' | 'torch' | 'door' | 'crafting_table'
+  // Blocos dos biomas
+  | 'dry_grass' | 'jungle_grass' | 'swamp_grass' | 'sandstone' | 'cactus' | 'ice'
+  | 'birch_wood' | 'spruce_leaves' | 'jungle_leaves' | 'acacia_leaves'
+  | 'bedrock';
 
 export type FruitType = 'flame' | 'ice' | 'light' | 'dark' | 'rubber';
 
@@ -13,7 +17,10 @@ export type ItemType =
   | 'shield' | 'lance' | 'torch'
   | 'wood' | 'stone' | 'cobblestone' | 'planks' | 'coal' | 'iron_ingot' | 'copper_ingot'
   | 'gold_ingot' | 'lapis' | 'diamond' | 'obsidian' | 'stick'
-  | 'door' | 'crafting_table';
+  | 'door' | 'crafting_table'
+  // Blocos que vão para o inventário ao quebrar
+  | 'dirt' | 'sand' | 'sandstone' | 'snow' | 'leaves' | 'cactus' | 'ice' | 'flower'
+  | 'glowstone' | 'netherrack' | 'nether_brick';
 
 export interface Item {
   type: ItemType;
@@ -61,28 +68,46 @@ export const BLOCK_COLORS: Record<BlockType, string> = {
   torch: '#FF9800',
   door: '#A1887F',
   crafting_table: '#A0764A',
+  dry_grass: '#B8B04E',
+  jungle_grass: '#3DAA36',
+  swamp_grass: '#5F7A38',
+  sandstone: '#D6C08A',
+  cactus: '#3F8F3A',
+  ice: '#A8D8F2',
+  birch_wood: '#DCD6C6',
+  spruce_leaves: '#2E5A3A',
+  jungle_leaves: '#2C9E32',
+  acacia_leaves: '#7DA236',
+  bedrock: '#3A3A3A',
 };
 
+/** Blocos que não quebram (o fundo do mundo). */
+export const UNBREAKABLE: BlockType[] = ['bedrock'];
+
+/** Blocos de grama (o lado fica com cor de terra). */
+export const GRASS_BLOCKS: BlockType[] = ['grass', 'dry_grass', 'jungle_grass', 'swamp_grass'];
+/** Troncos e folhas: não servem de chão para nascer nem para colocar árvore. */
+export const PLANT_BLOCKS: BlockType[] = ['wood', 'birch_wood', 'leaves', 'spruce_leaves', 'jungle_leaves', 'acacia_leaves', 'flower', 'cactus'];
+
 // Which items drop from which blocks
+// O que vai para o inventário ao quebrar cada bloco (todo bloco dá alguma coisa)
 export const BLOCK_DROPS: Partial<Record<BlockType, ItemType>> = {
-  stone: 'cobblestone',
-  coal_ore: 'coal',
-  iron_ore: 'iron_ingot',
-  copper_ore: 'copper_ingot',
-  gold_ore: 'gold_ingot',
-  lapis_ore: 'lapis',
-  diamond_ore: 'diamond',
-  obsidian: 'obsidian',
-  wood: 'wood',
-  cobblestone: 'cobblestone',
-  planks: 'planks',
+  grass: 'dirt', dry_grass: 'dirt', jungle_grass: 'dirt', swamp_grass: 'dirt', dirt: 'dirt',
+  stone: 'cobblestone', cobblestone: 'cobblestone',
+  sand: 'sand', sandstone: 'sandstone', snow: 'snow', ice: 'ice', cactus: 'cactus', flower: 'flower',
+  wood: 'wood', birch_wood: 'wood', planks: 'planks',
+  leaves: 'leaves', spruce_leaves: 'leaves', jungle_leaves: 'leaves', acacia_leaves: 'leaves',
+  coal_ore: 'coal', iron_ore: 'iron_ingot', copper_ore: 'copper_ingot', gold_ore: 'gold_ingot',
+  lapis_ore: 'lapis', diamond_ore: 'diamond', obsidian: 'obsidian',
+  netherrack: 'netherrack', nether_brick: 'nether_brick', netherite_ore: 'diamond', glowstone: 'glowstone',
+  torch: 'torch', door: 'door', crafting_table: 'crafting_table',
 };
 
 export const ITEM_CONFIG: Record<ItemType, { label: string; emoji: string; color: string }> = {
-  wood: { label: 'Madeira', emoji: '🪵', color: '#5a3a1a' },
+  wood: { label: 'Madeira', emoji: '🌲', color: '#5a3a1a' },
   stone: { label: 'Pedra', emoji: '🪨', color: '#8a8a8a' },
   cobblestone: { label: 'Pedregulho', emoji: '🧱', color: '#6a6a6a' },
-  planks: { label: 'Tábuas', emoji: '🟫', color: '#b8944a' },
+  planks: { label: 'Tábuas', emoji: '🪵', color: '#b8944a' },
   coal: { label: 'Carvão', emoji: '⚫', color: '#2a2a2a' },
   iron_ingot: { label: 'Ferro', emoji: '🔩', color: '#c4c4c4' },
   copper_ingot: { label: 'Cobre', emoji: '🟤', color: '#b87333' },
@@ -108,6 +133,17 @@ export const ITEM_CONFIG: Record<ItemType, { label: string; emoji: string; color
   torch: { label: 'Tocha', emoji: '🔥', color: '#ffa500' },
   door: { label: 'Porta', emoji: '🚪', color: '#8a6a3a' },
   crafting_table: { label: 'Mesa de Craft', emoji: '🔨', color: '#8a6a2a' },
+  dirt: { label: 'Terra', emoji: '🟫', color: '#8B5E3C' },
+  sand: { label: 'Areia', emoji: '🟨', color: '#E8D5A3' },
+  sandstone: { label: 'Arenito', emoji: '🟧', color: '#D6C08A' },
+  snow: { label: 'Neve', emoji: '❄️', color: '#F5F5F5' },
+  leaves: { label: 'Folhas', emoji: '🍃', color: '#2E7D32' },
+  cactus: { label: 'Cacto', emoji: '🌵', color: '#3F8F3A' },
+  ice: { label: 'Gelo', emoji: '🧊', color: '#A8D8F2' },
+  flower: { label: 'Flor', emoji: '🌸', color: '#E91E63' },
+  glowstone: { label: 'Pedra Luminosa', emoji: '✨', color: '#FFE082' },
+  netherrack: { label: 'Netherrack', emoji: '🟥', color: '#B71C1C' },
+  nether_brick: { label: 'Tijolo do Nether', emoji: '🧱', color: '#5D1A1A' },
 };
 
 export const CRAFT_RECIPES: CraftRecipe[] = [

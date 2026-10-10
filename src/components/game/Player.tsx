@@ -2,11 +2,11 @@ import { useRef, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { PointerLockControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { BlockType, Fruit, ItemType, GameCoin } from './types';
+import { BlockType, Fruit, ItemType, GameCoin, PLANT_BLOCKS } from './types';
 import { MobData } from './mobs';
 import { SkinData } from './skins';
 import { PlayerModel } from './PlayerModel';
-import { getGroundHeight } from './terrainGenerator';
+import { World } from './world';
 import { touchInput, isTouchDevice } from './touchInput';
 
 const TOUCH_LOOK_SPEED = 0.0055;
@@ -15,7 +15,7 @@ import { isTypingTarget } from './keyboard';
 import { playerPosition } from './playerState';
 
 interface PlayerProps {
-  blocks: Record<string, BlockType>;
+  world: World;
   fruits: Fruit[];
   mobs: MobData[];
   coins?: GameCoin[];
@@ -36,22 +36,21 @@ interface PlayerProps {
 
 type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
 
-const UNSAFE_SPAWN_SURFACES: BlockType[] = ['water', 'leaves', 'wood', 'flower'];
+const UNSAFE_SPAWN_SURFACES: BlockType[] = ['water', 'ice', ...PLANT_BLOCKS];
 
-function findSafeSpawn(blocks: Record<string, BlockType>) {
+function findSafeSpawn(world: World) {
   for (let r = 0; r <= 12; r++) {
     for (let x = -r; x <= r; x++) {
       for (let z = -r; z <= r; z++) {
         if (Math.abs(x) !== r && Math.abs(z) !== r) continue;
 
-        const groundY = getGroundHeight(x, z, blocks);
-        const surfaceKey = `${x},${Math.max(0, groundY - 1)},${z}`;
-        const surface = blocks[surfaceKey];
+        const groundY = world.groundHeight(x, z);
+        const surface = world.get(x, Math.max(0, groundY - 1), z);
 
         if (!surface || UNSAFE_SPAWN_SURFACES.includes(surface)) continue;
 
-        const head1 = blocks[`${x},${Math.floor(groundY + 1)},${z}`];
-        const head2 = blocks[`${x},${Math.floor(groundY + 2)},${z}`];
+        const head1 = world.get(x, Math.floor(groundY + 1), z);
+        const head2 = world.get(x, Math.floor(groundY + 2), z);
         if (head1 || head2) continue;
 
         return { x: x + 0.5, z: z + 0.5, groundY };
@@ -59,8 +58,31 @@ function findSafeSpawn(blocks: Record<string, BlockType>) {
     }
   }
 
-  const fallbackGround = getGroundHeight(0, 0, blocks);
+  const fallbackGround = world.groundHeight(0, 0);
   return { x: 0.5, z: 0.5, groundY: fallbackGround };
+}
+
+// ── Colisão com os blocos (para andar dentro de cavernas sem atravessar paredes) ──
+const RADIUS = 0.3;
+const BODY_HEIGHT = 1.8;
+const CORNER_OFFSETS: [number, number][] = [[-RADIUS, -RADIUS], [RADIUS, -RADIUS], [-RADIUS, RADIUS], [RADIUS, RADIUS]];
+
+/** O corpo do jogador (com os pés em "feet") encostaria num bloco sólido? */
+function bodyBlocked(world: World, x: number, feet: number, z: number): boolean {
+  const y0 = Math.floor(feet + 0.01);
+  const y1 = Math.floor(feet + BODY_HEIGHT - 0.01);
+  for (const [ox, oz] of CORNER_OFFSETS) {
+    const bx = Math.floor(x + ox), bz = Math.floor(z + oz);
+    for (let y = y0; y <= y1; y++) if (world.isSolid(bx, y, bz)) return true;
+  }
+  return false;
+}
+
+/** Altura do chão logo abaixo dos pés (o maior entre os 4 cantos do corpo). */
+function groundUnder(world: World, x: number, feet: number, z: number): number {
+  let g = 0;
+  for (const [ox, oz] of CORNER_OFFSETS) g = Math.max(g, world.floorBelow(x + ox, feet + 0.05, z + oz));
+  return g;
 }
 
 function playFootstep(ref: React.MutableRefObject<AudioContext | null>, gain: number) {
@@ -86,12 +108,12 @@ function playFootstep(ref: React.MutableRefObject<AudioContext | null>, gain: nu
   } catch { /* audio unavailable */ }
 }
 
-export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, controlsEnabled = true, respawnKey = 0, aura }: PlayerProps) {
+export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, controlsEnabled = true, respawnKey = 0, aura }: PlayerProps) {
   const { camera } = useThree();
   const controlsRef = useRef<React.ElementRef<typeof PointerLockControls>>(null);
   const velocity = useRef(new THREE.Vector3(0, 0, 0));
   const moveState = useRef({ forward: false, backward: false, left: false, right: false, jump: false });
-  const blocksRef = useRef(blocks);
+  const worldRef = useRef(world);
   const fruitsRef = useRef(fruits);
   const mobsRef = useRef(mobs);
   const [thirdPerson, setThirdPerson] = useState(false);
@@ -111,7 +133,7 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
   const lookEuler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
   const controlsEnabledRef = useRef(controlsEnabled);
   controlsEnabledRef.current = controlsEnabled;
-  blocksRef.current = blocks;
+  worldRef.current = world;
   fruitsRef.current = fruits;
   mobsRef.current = mobs;
 
@@ -132,7 +154,7 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
   // Nasce ao montar e renasce a cada morte (respawnKey).
   // Não depende de "blocks": antes, quebrar um bloco teleportava o jogador de volta ao início.
   useEffect(() => {
-    const safeSpawn = findSafeSpawn(blocksRef.current);
+    const safeSpawn = findSafeSpawn(worldRef.current);
     const spawnY = safeSpawn.groundY + PLAYER_HEIGHT + 2;
     camera.position.set(safeSpawn.x, spawnY, safeSpawn.z);
     playerPos.current.set(safeSpawn.x, spawnY, safeSpawn.z);
@@ -229,9 +251,9 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
           const bx = Math.floor(pos.x);
           const by = Math.floor(pos.y);
           const bz = Math.floor(pos.z);
-          const key = `${bx},${by},${bz}`;
-          if (blocksRef.current[key]) {
-            onBlockBreak(key);
+          const type = worldRef.current.get(bx, by, bz);
+          if (type && type !== 'water') {
+            onBlockBreak(`${bx},${by},${bz}`);
             break;
           }
         }
@@ -248,7 +270,7 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
   useFrame((_, delta) => {
     const dt = Math.min(delta, 0.1);
     const { forward, backward, left, right, jump } = moveState.current;
-    const currentBlocks = blocksRef.current;
+    const currentWorld = worldRef.current;
 
     // Com menu aberto (craft, loja, pausa) os controles de toque não mexem o jogador
     if (!controlsEnabledRef.current) {
@@ -306,27 +328,45 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
     horizVel.current.z += (desired.z - horizVel.current.z) * Math.min(1, rate * dt);
     if (horizVel.current.lengthSq() < 0.0004) horizVel.current.set(0, 0, 0);
 
-    playerPos.current.x += horizVel.current.x * dt;
-    playerPos.current.z += horizVel.current.z * dt;
+    // Movimento com colisão: anda até a parede; degrau de 1 bloco sobe sozinho
+    const pos = playerPos.current;
+    let feet = pos.y - PLAYER_HEIGHT;
+    const groundNow = groundUnder(currentWorld, pos.x, feet, pos.z);
+    const wasOnGround = feet - groundNow <= 0.08;
+    const tryMove = (nx: number, nz: number): boolean => {
+      if (!bodyBlocked(currentWorld, nx, feet, nz)) { pos.x = nx; pos.z = nz; return true; }
+      if (wasOnGround && !bodyBlocked(currentWorld, nx, feet + 1.02, nz) && !bodyBlocked(currentWorld, pos.x, feet + 1.02, pos.z)) {
+        feet = Math.floor(feet + 0.01) + 1;
+        pos.x = nx; pos.z = nz;
+        return true;
+      }
+      return false;
+    };
+    if (!tryMove(pos.x + horizVel.current.x * dt, pos.z)) horizVel.current.x = 0;
+    if (!tryMove(pos.x, pos.z + horizVel.current.z * dt)) horizVel.current.z = 0;
 
     velocity.current.y -= GRAVITY * dt;
-
-    const groundY = getGroundHeight(playerPos.current.x, playerPos.current.z, currentBlocks);
-    const onGround = playerPos.current.y <= groundY + PLAYER_HEIGHT + 0.1;
+    const groundY = groundUnder(currentWorld, pos.x, feet, pos.z);
+    const onGround = feet - groundY <= 0.08;
 
     if ((jump || (touchInput.jump && controlsEnabledRef.current)) && onGround) {
       velocity.current.y = JUMP_SPEED;
     }
 
-    playerPos.current.y += velocity.current.y * dt;
-
-    if (playerPos.current.y < groundY + PLAYER_HEIGHT) {
-      playerPos.current.y = groundY + PLAYER_HEIGHT;
+    let newFeet = feet + velocity.current.y * dt;
+    if (velocity.current.y > 0 && bodyBlocked(currentWorld, pos.x, newFeet, pos.z)) {
+      // Bateu a cabeça no teto
+      newFeet = feet;
       velocity.current.y = 0;
     }
+    if (newFeet < groundY) {
+      newFeet = groundY;
+      velocity.current.y = 0;
+    }
+    pos.y = newFeet + PLAYER_HEIGHT;
 
     if (playerPos.current.y < -5) {
-      const safeSpawn = findSafeSpawn(currentBlocks);
+      const safeSpawn = findSafeSpawn(currentWorld);
       const respawnY = safeSpawn.groundY + PLAYER_HEIGHT + 2;
       playerPos.current.set(safeSpawn.x, respawnY, safeSpawn.z);
       velocity.current.set(0, 0, 0);
