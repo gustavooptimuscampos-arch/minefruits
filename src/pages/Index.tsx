@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import type { Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { StartScreen } from '@/components/game/StartScreen';
 import { GameCanvas } from '@/components/game/GameCanvas';
@@ -23,7 +24,7 @@ function enterMobileFullscreen() {
 type Screen = 'start' | 'lobby' | 'game' | 'skin-creator';
 
 const Index = () => {
-  const [session, setSession] = useState<any>(null);
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [screen, setScreen] = useState<Screen>('start');
   const [selectedSkin, setSelectedSkin] = useState<SkinData>(SKINS[0]);
@@ -32,6 +33,8 @@ const Index = () => {
   const [playerName, setPlayerName] = useState('Player');
   const [isSinglePlayer, setIsSinglePlayer] = useState(true);
   const [guest, setGuest] = useState(false);
+  // Ao voltar do criador de skin, reabre direto a escolha de skin (com a nova selecionada)
+  const [openSkinPicker, setOpenSkinPicker] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -100,10 +103,12 @@ const Index = () => {
   const handleSaveCustomSkin = (skin: SkinData) => {
     setCustomSkins(prev => [...prev, skin]);
     setSelectedSkin(skin);
+    setOpenSkinPicker(true);
     setScreen('start');
   };
 
   const handleExitGame = () => {
+    setOpenSkinPicker(false);
     setScreen('start');
     if (document.pointerLockElement) document.exitPointerLock();
     if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
@@ -115,11 +120,18 @@ const Index = () => {
   };
 
   if (screen === 'skin-creator') {
-    return <SkinCreator onSave={handleSaveCustomSkin} onBack={() => setScreen('start')} />;
+    return <SkinCreator onSave={handleSaveCustomSkin} onBack={() => { setOpenSkinPicker(true); setScreen('start'); }} />;
   }
 
   if (screen === 'lobby') {
-    return <Lobby skin={selectedSkin} onJoinRoom={handleJoinRoom} onBack={() => setScreen('start')} />;
+    return (
+      <Lobby
+        skin={selectedSkin}
+        defaultName={guest ? '' : playerName}
+        onJoinRoom={handleJoinRoom}
+        onBack={() => { setOpenSkinPicker(true); setScreen('start'); }}
+      />
+    );
   }
 
   if (screen === 'game') {
@@ -144,12 +156,14 @@ const Index = () => {
           onClick={handleLogout}
           className="font-pixel text-[10px] px-3 py-1.5 bg-muted text-muted-foreground rounded hover:bg-muted/80 transition-colors"
         >
-          🚪 Sair ({playerName})
+          🚪 {guest ? 'Entrar / criar conta' : `Sair (${playerName})`}
         </button>
       </div>
       <StartScreen
         onStart={handleStart}
         customSkins={customSkins}
+        initialSkin={selectedSkin}
+        startOnSkins={openSkinPicker}
         onCreateSkin={() => setScreen('skin-creator')}
       />
     </div>

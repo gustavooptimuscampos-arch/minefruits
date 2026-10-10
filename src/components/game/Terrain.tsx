@@ -42,12 +42,6 @@ function isSolid(blocks: Record<string, BlockType>, x: number, y: number, z: num
   return !!b && !TRANSPARENT[b];
 }
 
-interface Built {
-  positions: Float32Array;
-  colors: Float32Array;
-  indices: number[];
-}
-
 function buildMeshes(blocks: Record<string, BlockType>) {
   const solid: Record<string, { pos: number[]; col: number[]; idx: number[] }> = {};
   const water: number[] = [];

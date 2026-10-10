@@ -1,8 +1,9 @@
+/* @import precisa vir antes de tudo: senão o navegador ignora e a fonte do jogo não carrega em produção */
+@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@400;500;600;700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
-
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@400;500;600;700&display=swap');
 
 @layer base {
   :root {

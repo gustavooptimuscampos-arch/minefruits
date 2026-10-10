@@ -38,14 +38,17 @@ export function SkinCreator({ onSave, onBack }: SkinCreatorProps) {
   const [capeColor, setCapeColor] = useState('#cc0000');
   const [activePart, setActivePart] = useState<PartKey | 'hat' | 'cape'>('head');
 
+  const trimmedName = name.trim();
+
   const handleSave = () => {
+    if (!trimmedName) return;
     const skin: SkinData = {
       id: 'custom-' + Date.now(),
-      name,
+      name: trimmedName,
       ...colors,
       hat: hat ? hatColor : undefined,
       cape: cape ? capeColor : undefined,
-      label: '🎨 ' + name,
+      label: '🎨 ' + trimmedName,
     };
     onSave(skin);
   };
@@ -223,7 +226,9 @@ export function SkinCreator({ onSave, onBack }: SkinCreatorProps) {
           </button>
           <button
             onClick={handleSave}
-            className="font-pixel text-sm px-8 py-3 bg-primary text-primary-foreground rounded-lg box-glow-green hover:scale-105 transition-transform duration-200 active:scale-95"
+            disabled={!trimmedName}
+            title={trimmedName ? undefined : 'Dê um nome para a skin'}
+            className="font-pixel text-sm px-8 py-3 bg-primary text-primary-foreground rounded-lg box-glow-green hover:scale-105 transition-transform duration-200 active:scale-95 disabled:opacity-40 disabled:hover:scale-100"
           >
             ✓ SALVAR SKIN
           </button>

@@ -1,22 +1,20 @@
-import { useRef, useMemo, useEffect } from 'react';
-import { useFrame, useThree } from '@react-three/fiber';
+import { useRef, useEffect } from 'react';
+import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { MobData, MOB_CONFIG } from './mobs';
 import { BlockType } from './types';
 import { getGroundHeight } from './terrainGenerator';
 import { AnimalModel, AnimalType, ANIMAL_TYPES } from './AnimalModel';
+import { playerPosition, mobRegistry } from './playerState';
 
-/** Posições vivas dos mobs (usado pelo cachorro). */
-export const mobRegistry = new Map<string, { pos: THREE.Vector3; hostile: boolean }>();
 
 interface MobsRendererProps {
   mobs: MobData[];
   blocks: Record<string, BlockType>;
-  onMobHit: (id: string, damage: number) => void;
   onPlayerDamage: (damage: number) => void;
 }
 
-export function MobsRenderer({ mobs, blocks, onMobHit, onPlayerDamage }: MobsRendererProps) {
+export function MobsRenderer({ mobs, blocks, onPlayerDamage }: MobsRendererProps) {
   return (
     <>
       {mobs.filter(m => !m.dead).map(mob => (
@@ -28,7 +26,6 @@ export function MobsRenderer({ mobs, blocks, onMobHit, onPlayerDamage }: MobsRen
 
 function MobMesh({ mob, blocks, onPlayerDamage }: { mob: MobData; blocks: Record<string, BlockType>; onPlayerDamage: (damage: number) => void }) {
   const groupRef = useRef<THREE.Group>(null);
-  const { camera } = useThree();
   const config = MOB_CONFIG[mob.type];
   const walkPhase = useRef(Math.random() * Math.PI * 2);
   const wanderTarget = useRef(new THREE.Vector3(
@@ -57,18 +54,18 @@ function MobMesh({ mob, blocks, onPlayerDamage }: { mob: MobData; blocks: Record
     attackCooldown.current = Math.max(0, attackCooldown.current - dt);
     hurtFlash.current = Math.max(0, hurtFlash.current - dt);
 
-    const distToPlayer = pos.distanceTo(camera.position);
+    const distToPlayer = pos.distanceTo(playerPosition);
 
     if (mob.hostile && distToPlayer < 20) {
       // Chase player
-      const dir = new THREE.Vector3().subVectors(camera.position, pos);
+      const dir = new THREE.Vector3().subVectors(playerPosition, pos);
       dir.y = 0;
       dir.normalize();
       pos.x += dir.x * config.speed * dt;
       pos.z += dir.z * config.speed * dt;
 
       // Face player
-      groupRef.current.lookAt(new THREE.Vector3(camera.position.x, pos.y, camera.position.z));
+      groupRef.current.lookAt(new THREE.Vector3(playerPosition.x, pos.y, playerPosition.z));
 
       // Attack when close
       if (distToPlayer < 2 && attackCooldown.current <= 0) {
@@ -211,10 +208,6 @@ function MobMesh({ mob, blocks, onPlayerDamage }: { mob: MobData; blocks: Record
         </group>
       )}
 
-      {/* Hostile glow at night */}
-      {mob.hostile && (
-        <pointLight color={config.eyeColor} intensity={0.5} distance={3} />
-      )}
     </group>
   );
 }

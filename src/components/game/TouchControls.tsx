@@ -158,8 +158,8 @@ function MenuBar({ onExit }: { onExit?: () => void }) {
   return (
     <div className="absolute left-1/2 -translate-x-1/2 flex gap-1.5" style={{ zIndex: 20, top: 'max(8px, env(safe-area-inset-top))' }}>
       {onExit && (
-        <button aria-label="Sair" onClick={onExit} className={`${btn} bg-destructive/70 font-pixel text-[9px] text-destructive-foreground`}>
-          Sair
+        <button aria-label="Pausar" onClick={onExit} className={`${btn} font-pixel text-[9px]`}>
+          ⏸
         </button>
       )}
       {items.map(([icon, label, code]) => (

@@ -21,11 +21,11 @@ const SUSPICIOUS_PATTERNS = [
   /^[^a-zA-ZÀ-ú]+$/, // only numbers/symbols
   /(.)\1{3,}/, // repeated chars (aaaa, 1111)
   /^.{1,2}$/, // too short (1-2 chars)
-  /[<>{}[\]\\\/]/, // code injection chars
+  /[<>{}[\]\\/]/, // code injection chars
   /^\d+$/, // only digits
 ];
 
-const MIN_AGE = 60;
+const MIN_AGE = 9;
 
 function validateName(name: string): string | null {
   const trimmed = name.trim().toLowerCase();
@@ -33,8 +33,13 @@ function validateName(name: string): string | null {
   if (trimmed.length < 3) return 'Nome deve ter pelo menos 3 caracteres';
   if (trimmed.length > 20) return 'Nome deve ter no máximo 20 caracteres';
 
+  // Compara palavras inteiras: com includes(), nomes como "Marcus" (cu) e "Cassio" (ass) eram bloqueados
+  const words = trimmed.normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter(Boolean);
+  const joined = words.join('');
   for (const word of BLOCKED_WORDS) {
-    if (trimmed.includes(word)) {
+    const plain = word.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+    const hit = plain.length <= 4 ? words.includes(plain) : words.includes(plain) || joined.includes(plain);
+    if (hit) {
       return '⚠️ Nome contém palavras ofensivas ou proibidas';
     }
   }
@@ -58,6 +63,7 @@ export default function Auth() {
   const [error, setError] = useState('');
   const [warning, setWarning] = useState('');
   const [loading, setLoading] = useState(false);
+  const [info, setInfo] = useState('');
 
   const handleNameChange = (value: string) => {
     setDisplayName(value);
@@ -68,6 +74,7 @@ export default function Auth() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setInfo('');
     setLoading(true);
 
     try {
@@ -93,9 +100,18 @@ export default function Auth() {
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
-          options: { data: { display_name: displayName.trim() } },
+          // idade e país também vão nos metadados: sem login ativo (confirmação de e-mail)
+          // o update em "profiles" abaixo é bloqueado pelo RLS e os dados se perdiam
+          options: { data: { display_name: displayName.trim(), age: ageNum, country } },
         });
         if (signUpError) throw signUpError;
+
+        if (!data.session) {
+          // Supabase exige confirmação de e-mail: antes a tela ficava parada sem explicação
+          setInfo('📧 Conta criada! Abra o link que enviamos para o seu e-mail e depois faça login.');
+          setIsLogin(true);
+          return;
+        }
 
         if (data.user) {
           await supabase.from('profiles').update({
@@ -105,8 +121,14 @@ export default function Auth() {
           }).eq('id', data.user.id);
         }
       }
-    } catch (err: any) {
-      setError(err.message || 'Erro ao autenticar');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : '';
+      setError(
+        /Invalid login credentials/i.test(message) ? 'E-mail ou senha incorretos.'
+        : /Email not confirmed/i.test(message) ? 'Confirme seu e-mail antes de entrar (veja sua caixa de entrada).'
+        : /already registered/i.test(message) ? 'Este e-mail já tem conta. Faça login.'
+        : message || 'Erro ao autenticar',
+      );
     } finally {
       setLoading(false);
     }
@@ -214,6 +236,12 @@ export default function Auth() {
               />
             </div>
 
+            {info && (
+              <div className="text-xs font-game text-foreground bg-primary/10 border border-primary/30 rounded-lg px-3 py-2">
+                {info}
+              </div>
+            )}
+
             {error && (
               <div className="text-xs font-game text-destructive bg-destructive/10 border border-destructive/30 rounded-lg px-3 py-2">
                 {error}
@@ -230,7 +258,7 @@ export default function Auth() {
           </form>
 
           <button
-            onClick={() => { setIsLogin(!isLogin); setError(''); setWarning(''); }}
+            onClick={() => { setIsLogin(!isLogin); setError(''); setWarning(''); setInfo(''); }}
             className="w-full mt-4 text-xs font-game text-muted-foreground hover:text-foreground transition-colors"
           >
             {isLogin ? 'Não tem conta? Criar uma' : 'Já tem conta? Fazer login'}

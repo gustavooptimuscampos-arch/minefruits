@@ -19,6 +19,7 @@ export function Fruits({ fruits }: FruitsProps) {
 
 function FruitMesh({ fruit }: { fruit: Fruit }) {
   const ref = useRef<THREE.Mesh>(null);
+  const haloRef = useRef<THREE.Mesh>(null);
   const baseY = fruit.position[1];
   const config = FRUIT_CONFIG[fruit.type];
 
@@ -27,6 +28,7 @@ function FruitMesh({ fruit }: { fruit: Fruit }) {
       ref.current.rotation.y += 0.02;
       ref.current.position.y = baseY + Math.sin(Date.now() * 0.003) * 0.3;
     }
+    if (haloRef.current && ref.current) haloRef.current.position.y = ref.current.position.y;
   });
 
   return (
@@ -39,13 +41,11 @@ function FruitMesh({ fruit }: { fruit: Fruit }) {
           emissiveIntensity={0.6}
         />
       </mesh>
-      {/* Glow */}
-      <pointLight
-        position={[fruit.position[0], baseY, fruit.position[2]]}
-        color={config.color}
-        intensity={1}
-        distance={4}
-      />
+      {/* Brilho (halo sem luz dinâmica: luzes por item travavam o jogo a cada coleta) */}
+      <mesh ref={haloRef} position={[fruit.position[0], baseY, fruit.position[2]]}>
+        <sphereGeometry args={[0.6, 12, 12]} />
+        <meshBasicMaterial color={config.color} transparent opacity={0.22} depthWrite={false} blending={THREE.AdditiveBlending} />
+      </mesh>
     </group>
   );
 }

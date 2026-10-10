@@ -22,3 +22,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Relatórios do auditor (npm run audit)
+audit-report.md
+audit-report.json

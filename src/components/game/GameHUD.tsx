@@ -20,10 +20,13 @@ interface GameHUDProps {
     setHotbar: React.Dispatch<React.SetStateAction<(ItemType | null)[]>>;
   };
   locked?: boolean;
-  onExit?: () => void;
+  /** Total de frutas do mapa (antes o HUD mostrava "/10" fixo). */
+  totalFruits?: number;
+  /** Abre o menu de pausa (de lá o jogador pode sair). */
+  onPause?: () => void;
 }
 
-export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, hunger, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false, onExit }: GameHUDProps) {
+export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, hunger, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false, totalFruits, onPause }: GameHUDProps) {
   return (
     <div className="absolute inset-0 pointer-events-none select-none" style={{ zIndex: 10 }}>
       {/* Crosshair */}
@@ -32,14 +35,14 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-6 h-6 border border-foreground/30 rounded-full" />
       </div>
 
-      {/* Exit button */}
-      {onExit && (
+      {/* Pause button */}
+      {onPause && (
         <div className="absolute top-4 left-1/2 -translate-x-1/2 pointer-events-auto hide-on-touch">
           <button
-            onClick={onExit}
-            className="font-pixel text-[10px] px-3 py-1 bg-destructive/80 text-destructive-foreground rounded hover:bg-destructive transition-colors"
+            onClick={onPause}
+            className="font-pixel text-[10px] px-3 py-1 bg-muted/80 text-foreground rounded hover:bg-muted transition-colors"
           >
-            ESC Sair
+            ESC Pausar
           </button>
         </div>
       )}
@@ -58,7 +61,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
       <div className="absolute top-4 left-4 hud-corner-left">
         <div className="bg-background/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-border/50 space-y-1">
           <div className="text-sm font-game text-muted-foreground">⛏️ Blocos: <span className="text-foreground">{blocksDestroyed}</span></div>
-          <div className="text-sm font-game text-muted-foreground">🍎 Frutas: <span className="text-foreground">{collectedFruits.length}/10</span></div>
+          <div className="text-sm font-game text-muted-foreground">🍎 Frutas: <span className="text-foreground">{collectedFruits.length}{totalFruits ? ` de ${totalFruits}` : ''}</span></div>
           <div className="text-sm font-game text-muted-foreground">💀 Mobs: <span className="text-foreground">{mobsKilled}</span></div>
           <div className="text-sm font-game text-muted-foreground">
             {isNight ? '🌙 Noite' : '☀️ Dia'}
@@ -127,7 +130,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
         <div className="text-center mt-1 hide-on-touch">
           <span className="text-[10px] font-game text-muted-foreground">
             {inventory.equippedItem ? ITEM_CONFIG[inventory.equippedItem].label : 'Mão vazia'}
-            {' • '}E craftar • B loja • R ranking • V câmera
+            {' • '}E craftar • B loja • R ranking • V câmera • T chat
           </span>
         </div>
       </div>
@@ -193,7 +196,8 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
 
 function PointerLockPrompt({ locked }: { locked: boolean }) {
   return (
-    <div className={`absolute bottom-6 left-1/2 -translate-x-1/2 flex items-center justify-center transition-opacity pointer-events-none ${locked ? 'opacity-0' : 'opacity-100'}`}>
+    // Fica acima da mira: antes ficava em cima da barra de itens e escondia os slots
+    <div className={`absolute top-[38%] left-1/2 -translate-x-1/2 flex items-center justify-center transition-opacity pointer-events-none ${locked ? 'opacity-0' : 'opacity-100'}`}>
       <div className="text-center bg-background/50 backdrop-blur-sm border border-border/50 rounded-lg px-3 py-1.5">
         <p className="font-pixel text-primary text-sm text-glow-green">CLIQUE PARA JOGAR</p>
       </div>

@@ -3,15 +3,23 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { SkinData } from './skins';
 
+type ValueRef<T> = { readonly current: T };
+
 interface PlayerModelProps {
   skin: SkinData;
   position: THREE.Vector3;
-  rotation: number; // Y rotation
-  isMoving: boolean;
+  /** Giro em Y. Pode ser um número fixo (jogador remoto) ou uma ref lida a cada frame (jogador local). */
+  rotation: number | ValueRef<number>;
+  isMoving: boolean | ValueRef<boolean>;
   isThirdPerson: boolean;
+  aura?: { color: string; emissive: string } | null;
 }
 
-export function PlayerModel({ skin, position, rotation, isMoving, isThirdPerson }: PlayerModelProps) {
+const read = <T,>(v: T | ValueRef<T>): T =>
+  typeof v === 'object' && v !== null && 'current' in (v as object) ? (v as ValueRef<T>).current : (v as T);
+
+export function PlayerModel({ skin, position, rotation, isMoving, isThirdPerson, aura }: PlayerModelProps) {
+  const auraRef = useRef<THREE.Mesh>(null);
   const groupRef = useRef<THREE.Group>(null);
   const leftArmRef = useRef<THREE.Mesh>(null);
   const rightArmRef = useRef<THREE.Mesh>(null);
@@ -24,10 +32,15 @@ export function PlayerModel({ skin, position, rotation, isMoving, isThirdPerson 
 
     groupRef.current.position.copy(position);
     groupRef.current.position.y -= 1.7; // Offset from camera to feet
-    groupRef.current.rotation.y = rotation + Math.PI; // Face forward
+    groupRef.current.rotation.y = read(rotation) + Math.PI; // Face forward
+
+    if (auraRef.current) {
+      auraRef.current.rotation.y += delta * 1.5;
+      auraRef.current.scale.setScalar(1 + Math.sin(performance.now() * 0.004) * 0.06);
+    }
 
     // Walk animation
-    if (isMoving) {
+    if (read(isMoving)) {
       walkPhase.current += delta * 8;
     } else {
       walkPhase.current *= 0.9;
@@ -116,6 +129,14 @@ export function PlayerModel({ skin, position, rotation, isMoving, isThirdPerson 
         <boxGeometry args={[0.22, 0.6, 0.25]} />
         <meshStandardMaterial color={skin.legs} roughness={0.7} />
       </mesh>
+
+      {/* Aura comprada na loja */}
+      {aura && (
+        <mesh ref={auraRef} position={[0, 0.9, 0]}>
+          <torusGeometry args={[0.6, 0.06, 8, 32]} />
+          <meshStandardMaterial color={aura.color} emissive={aura.emissive} emissiveIntensity={1.4} transparent opacity={0.75} />
+        </mesh>
+      )}
 
       {/* Shadow circle on ground */}
       <mesh rotation={[-Math.PI / 2, 0, 0]} position={[0, 0.06, 0]}>

@@ -7,12 +7,18 @@ interface StartScreenProps {
   onStart: (skin: SkinData, mode: 'single' | 'multi') => void;
   customSkins?: SkinData[];
   onCreateSkin?: () => void;
+  /** Skin que já estava escolhida (antes sempre voltava para a primeira). */
+  initialSkin?: SkinData;
+  /** Abrir direto na escolha de skin (ao voltar do criador de skin ou do lobby). */
+  startOnSkins?: boolean;
 }
 
-export function StartScreen({ onStart, customSkins = [], onCreateSkin }: StartScreenProps) {
+export function StartScreen({ onStart, customSkins = [], onCreateSkin, initialSkin, startOnSkins = false }: StartScreenProps) {
   const allSkins = [...SKINS, ...customSkins];
-  const [selectedSkin, setSelectedSkin] = useState(allSkins[0]);
-  const [showSkins, setShowSkins] = useState(false);
+  const [selectedSkin, setSelectedSkin] = useState(
+    (initialSkin && allSkins.find(s => s.id === initialSkin.id)) || allSkins[0],
+  );
+  const [showSkins, setShowSkins] = useState(startOnSkins);
 
   return (
     <div className="relative min-h-[100dvh] flex flex-col items-center justify-center overflow-hidden bg-background short:py-3">
@@ -107,6 +113,10 @@ export function StartScreen({ onStart, customSkins = [], onCreateSkin }: StartSc
                 <span className="bg-muted px-2 py-1 rounded">Clique Atacar</span>
                 <span className="bg-muted px-2 py-1 rounded">Espaço Pular</span>
                 <span className="bg-muted px-2 py-1 rounded">V Câmera</span>
+                <span className="bg-muted px-2 py-1 rounded">E Craft</span>
+                <span className="bg-muted px-2 py-1 rounded">B Loja</span>
+                <span className="bg-muted px-2 py-1 rounded">T Chat</span>
+                <span className="bg-muted px-2 py-1 rounded">ESC Pausa</span>
               </div>
             </div>
 

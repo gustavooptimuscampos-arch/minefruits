@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { isTypingTarget } from './keyboard';
 
 export interface ChatMessage {
   id: string;
@@ -12,12 +13,19 @@ interface GameChatProps {
   playerName: string;
   onSendMessage?: (text: string) => void;
   messages: ChatMessage[];
+  /** Avisa o jogo quando o chat abre/fecha (para soltar o mouse e não tratar o ESC como pausa). */
+  onOpenChange?: (open: boolean) => void;
+  /** false quando outro menu ou a pausa está aberto: a tecla T não abre o chat por cima. */
+  canOpen?: boolean;
 }
 
-export function GameChat({ playerName, onSendMessage, messages }: GameChatProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export function GameChat({ playerName, onSendMessage, messages, onOpenChange, canOpen = true }: GameChatProps) {
+  const [isOpen, setIsOpenState] = useState(false);
+  const setIsOpen = useCallback((open: boolean) => {
+    setIsOpenState(open);
+    onOpenChange?.(open);
+  }, [onOpenChange]);
   const [input, setInput] = useState('');
-  const [isFocused, setIsFocused] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -31,20 +39,20 @@ export function GameChat({ playerName, onSendMessage, messages }: GameChatProps)
   // T key to toggle chat
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.code === 'KeyT' && !isFocused) {
+      if (isTypingTarget(e.target)) return;
+      if (e.code === 'KeyT' && !isOpen && canOpen) {
         e.preventDefault();
         setIsOpen(true);
         setTimeout(() => inputRef.current?.focus(), 50);
       }
       if (e.code === 'Escape' && isOpen) {
         setIsOpen(false);
-        setIsFocused(false);
         inputRef.current?.blur();
       }
     };
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
-  }, [isFocused, isOpen]);
+  }, [isOpen, canOpen, setIsOpen]);
 
   const handleSend = useCallback(() => {
     const trimmed = input.trim();
@@ -92,7 +100,7 @@ export function GameChat({ playerName, onSendMessage, messages }: GameChatProps)
             <div className="flex items-center justify-between px-3 py-1.5 bg-muted/30 border-b border-border/30">
               <span className="text-xs font-game text-muted-foreground">💬 Chat</span>
               <button
-                onClick={() => { setIsOpen(false); setIsFocused(false); }}
+                onClick={() => setIsOpen(false)}
                 className="text-xs font-game text-muted-foreground hover:text-foreground"
               >
                 ESC
@@ -129,11 +137,14 @@ export function GameChat({ playerName, onSendMessage, messages }: GameChatProps)
                 type="text"
                 value={input}
                 onChange={e => setInput(e.target.value)}
-                onFocus={() => setIsFocused(true)}
-                onBlur={() => setIsFocused(false)}
                 onKeyDown={e => {
                   e.stopPropagation();
                   if (e.key === 'Enter') handleSend();
+                  // ESC dentro do campo fecha o chat (antes ele ficava preso aberto)
+                  if (e.key === 'Escape') {
+                    setIsOpen(false);
+                    inputRef.current?.blur();
+                  }
                 }}
                 placeholder="Digite uma mensagem..."
                 maxLength={200}

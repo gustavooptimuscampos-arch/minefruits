@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { BlockType } from './types';
 import { getGroundHeight } from './terrainGenerator';
-import { mobRegistry } from './MobsRenderer';
+import { playerPosition, mobRegistry } from './playerState';
 
 const FUR = '#d9d4cc';
 const DARK = '#b8b0a4';
@@ -46,7 +46,7 @@ export function Dog({ blocks, onMobHit }: { blocks: Record<string, BlockType>; o
     t.current += dt;
     biteCd.current = Math.max(0, biteCd.current - dt);
     const pos = g.position;
-    const player = camera.position;
+    const player = playerPosition;
 
     // Teleporta se ficar muito longe
     if (pos.distanceTo(player) > 25) pos.set(player.x + 1.5, player.y, player.z + 1.5);

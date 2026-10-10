@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
-import { SkinData, SKINS } from './skins';
+import { SkinData } from './skins';
 import gameBg from '@/assets/game-bg.jpg';
 
 interface LobbyProps {
   skin: SkinData;
   onJoinRoom: (roomCode: string, playerName: string) => void;
   onBack: () => void;
+  /** Nome da conta logada, para não precisar digitar de novo. */
+  defaultName?: string;
 }
 
 interface Room {
@@ -25,13 +27,14 @@ function generateCode(): string {
   return code;
 }
 
-export function Lobby({ skin, onJoinRoom, onBack }: LobbyProps) {
-  const [playerName, setPlayerName] = useState('');
+export function Lobby({ skin, onJoinRoom, onBack, defaultName = '' }: LobbyProps) {
+  const [playerName, setPlayerName] = useState(defaultName);
   const [joinCode, setJoinCode] = useState('');
   const [rooms, setRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [tab, setTab] = useState<'create' | 'join'>('create');
+  const [offline, setOffline] = useState(false);
 
   useEffect(() => {
     fetchRooms();
@@ -40,12 +43,13 @@ export function Lobby({ skin, onJoinRoom, onBack }: LobbyProps) {
   }, []);
 
   async function fetchRooms() {
-    const { data } = await supabase
+    const { data, error: err } = await supabase
       .from('game_rooms')
       .select('*')
       .eq('status', 'waiting')
       .order('created_at', { ascending: false })
       .limit(10);
+    setOffline(!!err);
     if (data) setRooms(data as Room[]);
   }
 
@@ -77,13 +81,18 @@ export function Lobby({ skin, onJoinRoom, onBack }: LobbyProps) {
     setLoading(true);
     setError('');
 
-    const { data } = await supabase
+    const { data, error: err } = await supabase
       .from('game_rooms')
       .select('*')
       .eq('code', code.toUpperCase())
       .eq('status', 'waiting')
-      .single();
+      .maybeSingle();
 
+    if (err) {
+      setError('Sem conexão com o servidor. Tente de novo.');
+      setLoading(false);
+      return;
+    }
     if (!data) {
       setError('Sala não encontrada ou já iniciada.');
       setLoading(false);
@@ -154,6 +163,12 @@ export function Lobby({ skin, onJoinRoom, onBack }: LobbyProps) {
           </button>
         </div>
 
+        {offline && !error && (
+          <div className="bg-orange-900/30 border border-orange-500/30 rounded-lg px-3 py-2 mb-4">
+            <span className="text-xs font-game text-orange-300">⚠️ Sem conexão com o servidor de salas. Verifique a internet.</span>
+          </div>
+        )}
+
         {error && (
           <div className="bg-red-900/30 border border-red-500/30 rounded-lg px-3 py-2 mb-4">
             <span className="text-xs font-game text-red-300">{error}</span>
@@ -178,6 +193,7 @@ export function Lobby({ skin, onJoinRoom, onBack }: LobbyProps) {
                 type="text"
                 value={joinCode}
                 onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
+                onKeyDown={(e) => { if (e.key === 'Enter' && joinCode.length === 5 && !loading) joinRoom(joinCode); }}
                 maxLength={5}
                 placeholder="CÓDIGO"
                 className="flex-1 px-4 py-3 rounded-lg bg-muted border border-border text-foreground font-pixel text-sm text-center tracking-widest focus:outline-none focus:border-primary uppercase"

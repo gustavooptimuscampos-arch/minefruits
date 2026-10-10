@@ -24,3 +24,25 @@ cd <repository-name>
 npm i
 npm run dev
 ```
+
+## Auditor do jogo
+
+Antes de cada push, rode o auditor. Ele confere o jogo inteiro e gera `audit-report.md`:
+
+```sh
+npm run audit            # tudo: tipos, lint, regras do jogo, build, testes e jogo aberto no navegador
+npm run audit -- --quick # só as checagens rápidas (sem build e sem navegador)
+npm run audit:fix        # aplica as correções automáticas seguras (lint) e audita de novo
+```
+
+O que ele verifica:
+
+- **Sintaxe e tipos** — erros de TypeScript e código morto (imports e variáveis sem uso).
+- **Navegação** — toda tela tem caminho de volta, rotas e links apontam para lugares que existem.
+- **Quebra de contexto** — atalhos de teclado que vazam de campos de texto, listeners/timers/canais sem limpeza, efeitos colaterais dentro de `setState`.
+- **Fluxo do jogo** — spawn que teleporta o jogador, mouse preso em menus, ESC que encerra a partida, teclas anunciadas na tela sem programação.
+- **Multiplayer, desempenho, UX, cadastro e segurança** — limite de envio no Realtime, luzes por item, fonte que não carrega, textos em inglês, aviso para celular, filtro de nomes, RLS.
+- **Teste no navegador** — abre o jogo de verdade (Chromium) e percorre os fluxos: menu → skin → criar skin → multiplayer → solo → craft/loja/chat/pausa → sair → página 404.
+
+Para o teste no navegador, instale o Chromium uma vez: `npx playwright install chromium`.
+O comando termina com código 1 quando há erro, então serve também para CI.

@@ -36,8 +36,11 @@ export function CoinsRenderer({ coins }: CoinsRendererProps) {
               roughness={0.2}
             />
           </mesh>
-          {/* Glow */}
-          <pointLight color="#ffd700" intensity={0.5} distance={3} />
+          {/* Brilho (halo sem luz dinâmica) */}
+          <mesh>
+            <sphereGeometry args={[0.4, 10, 10]} />
+            <meshBasicMaterial color="#ffd700" transparent opacity={0.18} depthWrite={false} blending={THREE.AdditiveBlending} />
+          </mesh>
         </group>
       ))}
     </group>

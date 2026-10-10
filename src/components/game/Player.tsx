@@ -2,7 +2,7 @@ import { useRef, useEffect, useState } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import { PointerLockControls } from '@react-three/drei';
 import * as THREE from 'three';
-import { BlockType, Fruit, ItemType, TOOL_DAMAGE, GameCoin } from './types';
+import { BlockType, Fruit, ItemType, GameCoin } from './types';
 import { MobData } from './mobs';
 import { SkinData } from './skins';
 import { PlayerModel } from './PlayerModel';
@@ -11,6 +11,8 @@ import { touchInput, isTouchDevice } from './touchInput';
 
 const TOUCH_LOOK_SPEED = 0.0055;
 const MAX_PITCH = Math.PI / 2 - 0.05;
+import { isTypingTarget } from './keyboard';
+import { playerPosition } from './playerState';
 
 interface PlayerProps {
   blocks: Record<string, BlockType>;
@@ -25,7 +27,14 @@ interface PlayerProps {
   sendPosition?: (position: [number, number, number], rotation: number, isMoving: boolean, health: number) => void;
   playerHealth?: number;
   equippedItem?: ItemType | null;
+  /** false enquanto um menu (craft, loja, chat, pausa) está aberto: o mouse não gira a câmera. */
+  controlsEnabled?: boolean;
+  /** Muda a cada morte: o jogador volta para o ponto de nascimento. */
+  respawnKey?: number;
+  aura?: { color: string; emissive: string } | null;
 }
+
+type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
 
 const UNSAFE_SPAWN_SURFACES: BlockType[] = ['water', 'leaves', 'wood', 'flower'];
 
@@ -56,7 +65,7 @@ function findSafeSpawn(blocks: Record<string, BlockType>) {
 
 function playFootstep(ref: React.MutableRefObject<AudioContext | null>, gain: number) {
   try {
-    if (!ref.current) ref.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+    if (!ref.current) ref.current = new (window.AudioContext || (window as WebkitWindow).webkitAudioContext!)();
     const ctx = ref.current;
     if (ctx.state === 'suspended') ctx.resume();
     const now = ctx.currentTime;
@@ -77,9 +86,9 @@ function playFootstep(ref: React.MutableRefObject<AudioContext | null>, gain: nu
   } catch { /* audio unavailable */ }
 }
 
-export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, equippedItem }: PlayerProps) {
+export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, controlsEnabled = true, respawnKey = 0, aura }: PlayerProps) {
   const { camera } = useThree();
-  const controlsRef = useRef<any>(null);
+  const controlsRef = useRef<React.ElementRef<typeof PointerLockControls>>(null);
   const velocity = useRef(new THREE.Vector3(0, 0, 0));
   const moveState = useRef({ forward: false, backward: false, left: false, right: false, jump: false });
   const blocksRef = useRef(blocks);
@@ -100,6 +109,8 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
   const audioRef = useRef<AudioContext | null>(null);
   const attackRef = useRef<() => void>(() => {});
   const lookEuler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
+  const controlsEnabledRef = useRef(controlsEnabled);
+  controlsEnabledRef.current = controlsEnabled;
   blocksRef.current = blocks;
   fruitsRef.current = fruits;
   mobsRef.current = mobs;
@@ -118,20 +129,33 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
   const THIRD_PERSON_DISTANCE = 5;
   const THIRD_PERSON_HEIGHT = 2;
 
+  // Nasce ao montar e renasce a cada morte (respawnKey).
+  // Não depende de "blocks": antes, quebrar um bloco teleportava o jogador de volta ao início.
   useEffect(() => {
-    const safeSpawn = findSafeSpawn(blocks);
+    const safeSpawn = findSafeSpawn(blocksRef.current);
     const spawnY = safeSpawn.groundY + PLAYER_HEIGHT + 2;
     camera.position.set(safeSpawn.x, spawnY, safeSpawn.z);
     playerPos.current.set(safeSpawn.x, spawnY, safeSpawn.z);
+    velocity.current.set(0, 0, 0);
+    horizVel.current.set(0, 0, 0);
     // Ordem YXZ (giro → inclinação → rolagem): mexer só no "z" nunca vira a câmera de ponta-cabeça
     camera.rotation.order = 'YXZ';
     // Look slightly downward so terrain is visible immediately
     camera.rotation.set(-0.4, 0, 0);
-  }, [camera, blocks]);
+  }, [camera, respawnKey]);
+
+  // Ao abrir um menu, solta todas as teclas: senão o keyup se perde e o jogador continua andando sozinho.
+  useEffect(() => {
+    if (controlsEnabled) return;
+    moveState.current = { forward: false, backward: false, left: false, right: false, jump: false };
+    sprintRef.current = false;
+    crouchRef.current = false;
+  }, [controlsEnabled]);
 
   // Toggle view with V key
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return;
       switch (e.code) {
         case 'KeyW': case 'ArrowUp': moveState.current.forward = true; break;
         case 'KeyS': case 'ArrowDown': moveState.current.backward = true; break;
@@ -147,6 +171,7 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
       }
     };
     const onKeyUp = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return;
       switch (e.code) {
         case 'KeyW': case 'ArrowUp': moveState.current.forward = false; break;
         case 'KeyS': case 'ArrowDown': moveState.current.backward = false; break;
@@ -157,11 +182,19 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
         case 'ControlLeft': case 'ControlRight': case 'KeyC': crouchRef.current = false; break;
       }
     };
+    // Trocar de aba/janela também perde o keyup
+    const releaseAll = () => {
+      moveState.current = { forward: false, backward: false, left: false, right: false, jump: false };
+      sprintRef.current = false;
+      crouchRef.current = false;
+    };
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('keyup', onKeyUp);
+    window.addEventListener('blur', releaseAll);
     return () => {
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('keyup', onKeyUp);
+      window.removeEventListener('blur', releaseAll);
     };
   }, []);
 
@@ -217,6 +250,13 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
     const { forward, backward, left, right, jump } = moveState.current;
     const currentBlocks = blocksRef.current;
 
+    // Com menu aberto (craft, loja, pausa) os controles de toque não mexem o jogador
+    if (!controlsEnabledRef.current) {
+      touchInput.lookDX = 0;
+      touchInput.lookDY = 0;
+      touchInput.attacks = 0;
+    }
+
     // Celular: arrastar o dedo gira a câmera
     if (touchInput.lookDX || touchInput.lookDY) {
       const e = lookEuler.current.setFromQuaternion(camera.quaternion, 'YXZ');
@@ -246,7 +286,7 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
     if (right) moveDir.add(rightDir);
     if (left) moveDir.sub(rightDir);
     // Joystick do celular (analógico)
-    if (Math.hypot(touchInput.moveX, touchInput.moveY) > 0.12) {
+    if (controlsEnabledRef.current && Math.hypot(touchInput.moveX, touchInput.moveY) > 0.12) {
       moveDir.addScaledVector(forwardDir, -touchInput.moveY).addScaledVector(rightDir, touchInput.moveX);
     }
     const isMoving = moveDir.length() > 0;
@@ -274,7 +314,7 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
     const groundY = getGroundHeight(playerPos.current.x, playerPos.current.z, currentBlocks);
     const onGround = playerPos.current.y <= groundY + PLAYER_HEIGHT + 0.1;
 
-    if ((jump || touchInput.jump) && onGround) {
+    if ((jump || (touchInput.jump && controlsEnabledRef.current)) && onGround) {
       velocity.current.y = JUMP_SPEED;
     }
 
@@ -294,6 +334,7 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
 
     // Store yaw for model rotation
     playerYaw.current = Math.atan2(forwardDir.x, forwardDir.z);
+    playerPosition.copy(playerPos.current);
 
     if (thirdPersonRef.current) {
       // Third person: camera behind player
@@ -375,14 +416,23 @@ export function Player({ blocks, fruits, mobs, coins = [], skin, onBlockBreak, o
 
   return (
     <>
-      {!isTouchDevice && <PointerLockControls ref={controlsRef} minPolarAngle={0.05} maxPolarAngle={Math.PI - 0.05} />}
+      {!isTouchDevice && (
+        <PointerLockControls
+          ref={controlsRef}
+          selector="#game-canvas canvas"
+          enabled={controlsEnabled}
+          minPolarAngle={0.05}
+          maxPolarAngle={Math.PI - 0.05}
+        />
+      )}
       {thirdPerson && (
         <PlayerModel
           skin={skin}
           position={playerPos.current}
-          rotation={playerYaw.current}
-          isMoving={isMovingRef.current}
+          rotation={playerYaw}
+          isMoving={isMovingRef}
           isThirdPerson={thirdPerson}
+          aura={aura}
         />
       )}
     </>
