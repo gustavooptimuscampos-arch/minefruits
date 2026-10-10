@@ -26,13 +26,16 @@ interface GameHUDProps {
   biome?: string;
   /** Poder da fruta atual e quanto falta para usar de novo. */
   power?: { emoji: string; name: string; cooldown: number; remaining: number } | null;
+  /** Todos os poderes que o jogador já ganhou (para sempre). */
+  powers?: { type: FruitType; emoji: string; name: string }[];
+  onSelectPower?: (type: FruitType) => void;
   /** Quantos Guardiões ainda protegem frutas. */
   guardiansLeft?: number;
   /** Abre o menu de pausa (de lá o jogador pode sair). */
   onPause?: () => void;
 }
 
-export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, hunger, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false, totalFruits, biome, power, guardiansLeft, onPause }: GameHUDProps) {
+export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, hunger, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false, totalFruits, biome, power, powers = [], onSelectPower, guardiansLeft, onPause }: GameHUDProps) {
   return (
     <div className="absolute inset-0 pointer-events-none select-none" style={{ zIndex: 10 }}>
       {/* Crosshair */}
@@ -140,14 +143,26 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
         <div className="text-center mt-1 hide-on-touch">
           <span className="text-[10px] font-game text-muted-foreground">
             {inventory.equippedItem ? ITEM_CONFIG[inventory.equippedItem].label : 'Mão vazia'}
-            {' • '}F poder • E craftar • B loja • R ranking • V câmera • T chat
+            {' • '}F poder • Q troca • E craftar • B loja • R ranking • V câmera • T chat
           </span>
         </div>
       </div>
 
-      {/* Poder da fruta (tecla F) */}
+      {/* Poder da fruta (tecla F) e os outros poderes já ganhos (Q troca, ou clique) */}
       {power && (
-        <div className="absolute bottom-[132px] left-1/2 -translate-x-1/2 hud-power">
+        <div className="absolute bottom-[132px] left-1/2 -translate-x-1/2 hud-power flex items-center gap-1.5">
+          {powers.length > 1 && powers.map(p => (
+            <button
+              key={p.type}
+              title={`${p.name} (clique ou Q para trocar)`}
+              onClick={() => onSelectPower?.(p.type)}
+              className={`pointer-events-auto w-8 h-8 rounded-lg text-base border transition-transform active:scale-90 ${
+                p.name === power.name ? 'bg-purple-500/40 border-purple-300' : 'bg-background/60 border-border/50 opacity-70'
+              }`}
+            >
+              {p.emoji}
+            </button>
+          ))}
           <div className="relative overflow-hidden bg-background/70 backdrop-blur-sm rounded-lg px-3 py-1 border border-purple-400/50 flex items-center gap-2">
             {power.remaining > 0 && (
               <div className="absolute inset-y-0 left-0 bg-purple-500/30" style={{ width: `${(power.remaining / power.cooldown) * 100}%` }} />

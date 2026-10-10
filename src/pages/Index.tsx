@@ -138,6 +138,9 @@ const Index = () => {
     return (
       <GameCanvas
         skin={selectedSkin}
+        playerId={session?.user?.id ?? 'visitante'}
+        savedPowers={session?.user?.user_metadata?.fruit_powers}
+        loggedIn={!!session && !guest}
         multiplayer={!isSinglePlayer ? { roomCode: roomCode!, playerName } : undefined}
         onExit={handleExitGame}
       />

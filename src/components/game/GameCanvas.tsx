@@ -27,15 +27,22 @@ import { isTypingTarget } from './keyboard';
 import { BIOMES, BiomeId, biomeAt, buildBiomeLayout, seedFromString } from './biomes';
 import { playerPosition, playerLook, playerCommands, mobRegistry, mobFrozenUntil, addPowerEffect } from './playerState';
 import { PowerEffects } from './PowerEffects';
-import { FRUIT_POWERS } from './powers';
+import { FRUIT_POWERS, loadPowers, saveLocalPowers } from './powers';
+import { supabase } from '@/integrations/supabase/client';
 
 interface GameCanvasProps {
   skin: SkinData;
   multiplayer?: { roomCode: string; playerName: string };
   onExit?: () => void;
+  /** Quem está jogando (id da conta ou "visitante"): os poderes ficam salvos para ele. */
+  playerId?: string;
+  /** Poderes já salvos na conta (para valer em qualquer aparelho). */
+  savedPowers?: unknown;
+  /** true quando há conta logada (aí os poderes também são salvos na conta). */
+  loggedIn?: boolean;
 }
 
-export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
+export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', savedPowers, loggedIn = false }: GameCanvasProps) {
   // Solo: mapa novo a cada partida. Multiplayer: a semente vem do código da sala,
   // então todos na sala recebem a mesma ilha.
   const [worldSeed] = useState(() => (multiplayer ? seedFromString(multiplayer.roomCode) : Math.floor(Math.random() * 1e9)));
@@ -71,8 +78,9 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
   const [respawnKey, setRespawnKey] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [biome, setBiome] = useState<BiomeId>('plains');
-  // Poder da última fruta comida (como no Blox Fruits, um poder por vez)
-  const [power, setPower] = useState<FruitType | null>(null);
+  // Poderes ganhos ficam para sempre (salvos); "power" é o que está em uso agora
+  const [powers, setPowers] = useState<FruitType[]>(() => loadPowers(playerId, savedPowers));
+  const [power, setPower] = useState<FruitType | null>(() => powers[powers.length - 1] ?? null);
   const [powerReadyAt, setPowerReadyAt] = useState(0);
   const [now, setNow] = useState(() => performance.now());
 
@@ -256,6 +264,7 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
         releasePointer();
       }
       if (e.code === 'KeyF') usePowerRef.current();
+      if (e.code === 'KeyQ') cyclePowerRef.current();
       if (e.code >= 'Digit1' && e.code <= 'Digit9') {
         setSelectedSlot(parseInt(e.code.replace('Digit', '')) - 1);
       }
@@ -319,11 +328,30 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
       if (existing) return prev.map(e => e === existing ? { ...e, count: e.count + 1, points: e.points + pts } : e);
       return [...prev, { type: 'fruit', name: config.name, emoji: config.power.split(' ')[0], points: pts, count: 1 }];
     });
-    // Comer a fruta dá o poder dela (troca o poder anterior)
+    // Comer a fruta dá o poder dela para sempre (os anteriores continuam; Q troca)
+    setPowers(prev => (prev.includes(fruit.type) ? prev : [...prev, fruit.type]));
     setPower(fruit.type);
     setPowerReadyAt(0);
-    showNotice(`${FRUIT_POWERS[fruit.type].emoji} Você ganhou o poder ${FRUIT_POWERS[fruit.type].name}! Aperte F`);
+    showNotice(`${FRUIT_POWERS[fruit.type].emoji} Poder ${FRUIT_POWERS[fruit.type].name} é seu para sempre! Aperte F`);
   }, [showNotice]);
+
+  // Salva os poderes neste aparelho e, com conta, na conta também
+  const savedOnce = useRef(false);
+  useEffect(() => {
+    if (!savedOnce.current) { savedOnce.current = true; if (powers.length === 0) return; }
+    saveLocalPowers(playerId, powers);
+    if (loggedIn) supabase.auth.updateUser({ data: { fruit_powers: powers } }).catch(() => { /* fica salvo no aparelho */ });
+  }, [powers, playerId, loggedIn]);
+
+  /** Troca o poder em uso entre os que o jogador já tem. */
+  const cyclePower = useCallback(() => {
+    if (powers.length < 2) return;
+    const next = powers[(powers.indexOf(power ?? powers[0]) + 1) % powers.length];
+    setPower(next);
+    showNotice(`${FRUIT_POWERS[next].emoji} Usando: ${FRUIT_POWERS[next].name}`);
+  }, [powers, power, showNotice]);
+  const cyclePowerRef = useRef(cyclePower);
+  cyclePowerRef.current = cyclePower;
 
   /** Dano em mob. Usado pelo jogador e pelo cachorro. */
   const handleMobHit = useCallback((id: string, damage: number) => {
@@ -514,7 +542,7 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
           onMobHit={handlePlayerAttack} sendPosition={isMultiplayer ? mp.sendPosition : undefined}
           playerHealth={playerHealth} equippedItem={equippedItem}
           controlsEnabled={!anyOverlay} respawnKey={respawnKey} aura={auraData}
-          jumpBoost={power === 'rubber' ? 1.6 : 1} speedBoost={power === 'light' ? 1.25 : 1}
+          jumpBoost={powers.includes('rubber') ? 1.6 : 1} speedBoost={powers.includes('light') ? 1.25 : 1}
         />
         {isMultiplayer && <RemotePlayersRenderer players={mp.remotePlayers} />}
       </Canvas>
@@ -530,6 +558,8 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
         inventory={inventory} voxelCoins={voxelCoins} locked={locked || anyOverlay}
         totalFruits={fruits.length}
         biome={`${BIOMES[biome].emoji} ${BIOMES[biome].name}`}
+        powers={powers.map(t => ({ type: t, emoji: FRUIT_POWERS[t].emoji, name: FRUIT_POWERS[t].name }))}
+        onSelectPower={(t: FruitType) => setPower(t)}
         power={power ? { emoji: FRUIT_POWERS[power].emoji, name: FRUIT_POWERS[power].name, cooldown: FRUIT_POWERS[power].cooldown, remaining: Math.max(0, (powerReadyAt - now) / 1000) } : null}
         guardiansLeft={mobs.filter(m => m.type === 'guardian' && !m.dead).length}
         onPause={() => { releasePointer(); setPaused(true); }}
