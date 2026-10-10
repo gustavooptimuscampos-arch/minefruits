@@ -116,6 +116,7 @@ export function StartScreen({ onStart, customSkins = [], onCreateSkin, initialSk
                 <span className="bg-muted px-2 py-1 rounded">E Craft</span>
                 <span className="bg-muted px-2 py-1 rounded">B Loja</span>
                 <span className="bg-muted px-2 py-1 rounded">T Chat</span>
+                <span className="bg-muted px-2 py-1 rounded">F Poder da fruta</span>
                 <span className="bg-muted px-2 py-1 rounded">ESC Pausa</span>
               </div>
             </div>

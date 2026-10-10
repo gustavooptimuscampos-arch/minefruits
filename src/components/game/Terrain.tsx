@@ -45,6 +45,34 @@ const TRANSPARENT_ID: boolean[] = [false, ...BLOCK_TYPES.map(t => TRANSPARENT_TY
 const GRASS_ID: boolean[] = [false, ...BLOCK_TYPES.map(t => GRASS_BLOCKS.includes(t))];
 const COLOR_ID: THREE.Color[] = [new THREE.Color(), ...BLOCK_TYPES.map(t => new THREE.Color(BLOCK_COLORS[t] || '#808080'))];
 const DIRT = new THREE.Color(BLOCK_COLORS.dirt);
+const FLOWER_ID = BLOCK_TYPES.indexOf('flower') + 1;
+const STEM = new THREE.Color('#3f8f3a');
+
+type Bucket = { pos: number[]; col: number[]; idx: number[] };
+
+/** Caixinha simples (sem sombra de canto), usada para desenhar flores pequenas. */
+function addBox(b: Bucket, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, color: THREE.Color, k = 1) {
+  const cx = (x0 + x1) / 2, cy = (y0 + y1) / 2, cz = (z0 + z1) / 2;
+  const quads: [number[], number][] = [
+    [[x0, y1, z0, x1, y1, z0, x1, y1, z1, x0, y1, z1], 1.0],  // topo
+    [[x0, y0, z1, x1, y0, z1, x1, y1, z1, x0, y1, z1], 0.75], // frente
+    [[x1, y0, z0, x0, y0, z0, x0, y1, z0, x1, y1, z0], 0.75], // trás
+    [[x1, y0, z1, x1, y0, z0, x1, y1, z0, x1, y1, z1], 0.62], // direita
+    [[x0, y0, z0, x0, y0, z1, x0, y1, z1, x0, y1, z0], 0.62], // esquerda
+  ];
+  for (const [v, shade] of quads) {
+    const start = b.pos.length / 3;
+    b.pos.push(...v);
+    for (let i = 0; i < 4; i++) b.col.push(color.r * shade * k, color.g * shade * k, color.b * shade * k);
+    // Garante que a face aponta para fora da caixa (senão ela some)
+    const ux = v[3] - v[0], uy = v[4] - v[1], uz = v[5] - v[2];
+    const wx = v[6] - v[0], wy = v[7] - v[1], wz = v[8] - v[2];
+    const nx = uy * wz - uz * wy, ny = uz * wx - ux * wz, nz = ux * wy - uy * wx;
+    const ox = (v[0] + v[6]) / 2 - cx, oy = (v[1] + v[7]) / 2 - cy, oz = (v[2] + v[8]) / 2 - cz;
+    if (nx * ox + ny * oy + nz * oz > 0) b.idx.push(start, start + 1, start + 2, start, start + 2, start + 3);
+    else b.idx.push(start, start + 2, start + 1, start, start + 3, start + 2);
+  }
+}
 
 function buildChunk(world: World, cx: number, cz: number) {
   const opaque = { pos: [] as number[], col: [] as number[], idx: [] as number[] };
@@ -77,6 +105,13 @@ function buildChunk(world: World, cx: number, cz: number) {
           water.push(x, y + h, z, x + 1, y + h, z, x + 1, y + h, z + 1, x, y + h, z + 1);
           for (let i = 0; i < 4; i++) waterCol.push(0.16, 0.45, 0.78);
           waterIdx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+          continue;
+        }
+
+        // Flor: um caule e uma florzinha, em vez de um cubo inteiro rosa
+        if (id === FLOWER_ID) {
+          addBox(leafy, x + 0.46, y, z + 0.46, x + 0.54, y + 0.45, z + 0.54, STEM);
+          addBox(leafy, x + 0.34, y + 0.4, z + 0.34, x + 0.66, y + 0.66, z + 0.66, COLOR_ID[id], tint(x, y, z));
           continue;
         }
 

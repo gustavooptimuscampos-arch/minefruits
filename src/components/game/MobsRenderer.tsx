@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { MobData, MOB_CONFIG } from './mobs';
 import { World } from './world';
 import { AnimalModel, AnimalType, ANIMAL_TYPES } from './AnimalModel';
-import { playerPosition, mobRegistry } from './playerState';
+import { playerPosition, mobRegistry, mobFrozenUntil } from './playerState';
 import { WORLD_HALF } from './biomes';
 
 
@@ -55,8 +55,17 @@ function MobMesh({ mob, world, onPlayerDamage }: { mob: MobData; world: World; o
     hurtFlash.current = Math.max(0, hurtFlash.current - dt);
 
     const distToPlayer = pos.distanceTo(playerPosition);
+    const isGuardian = mob.type === 'guardian';
+    const home = mob.home;
+    // Poder do Gelo: mob congelado não anda nem ataca
+    const frozen = (mobFrozenUntil.get(mob.id) ?? 0) > performance.now();
+    // O Guardião só sai atrás do jogador perto da fruta (não persegue pelo mapa todo)
+    const farFromHome = !!home && Math.hypot(pos.x - home[0], pos.z - home[2]) > 10;
+    const chaseRange = isGuardian ? 12 : 20;
 
-    if (mob.hostile && distToPlayer < 20) {
+    if (frozen) {
+      moving.current = 0;
+    } else if (mob.hostile && distToPlayer < chaseRange && !(isGuardian && farFromHome && distToPlayer > 4)) {
       // Chase player
       const dir = new THREE.Vector3().subVectors(playerPosition, pos);
       dir.y = 0;
@@ -69,17 +78,20 @@ function MobMesh({ mob, world, onPlayerDamage }: { mob: MobData; world: World; o
 
       // Attack when close
       if (distToPlayer < 2 && attackCooldown.current <= 0) {
-        onPlayerDamage(mob.type === 'spider' ? 4 : mob.type === 'skeleton' ? 6 : 5);
+        onPlayerDamage(isGuardian ? 10 : mob.type === 'spider' ? 4 : mob.type === 'skeleton' ? 6 : 5);
         attackCooldown.current = 1.5;
       }
     } else {
       // Wander
       if (wanderTimer.current > 3 + Math.random() * 4) {
         wanderTimer.current = 0;
+        // O Guardião fica rondando a fruta
+        const cx = home ? home[0] : pos.x, cz = home ? home[2] : pos.z;
+        const spread = home ? 5 : 8;
         wanderTarget.current.set(
-          pos.x + (Math.random() - 0.5) * 8,
+          cx + (Math.random() - 0.5) * spread,
           pos.y,
-          pos.z + (Math.random() - 0.5) * 8,
+          cz + (Math.random() - 0.5) * spread,
         );
       }
 
@@ -95,8 +107,9 @@ function MobMesh({ mob, world, onPlayerDamage }: { mob: MobData; world: World; o
       }
     }
 
-    // Ground snap
-    const groundY = world.groundHeight(pos.x, pos.z);
+    // Ground snap (o Guardião da caverna anda no chão da caverna)
+    const surfaceY = world.groundHeight(pos.x, pos.z);
+    const groundY = home && home[1] < surfaceY - 3 ? world.floorBelow(pos.x, home[1] + 2, pos.z) : surfaceY;
     pos.y = isAnimal ? groundY : groundY + config.bodyScale[1] / 2;
 
     // Keep in bounds
@@ -172,6 +185,22 @@ function MobMesh({ mob, world, onPlayerDamage }: { mob: MobData; world: World; o
         </>
       )}
 
+      {/* Guardião: elmo dourado e ombreiras */}
+      {mob.type === 'guardian' && (
+        <>
+          <mesh position={[0, bh / 2 + headSize + 0.06, 0]}>
+            <boxGeometry args={[headSize * 1.25, 0.18, headSize * 1.25]} />
+            <meshStandardMaterial color="#ffcc00" emissive="#aa7700" emissiveIntensity={0.5} metalness={0.6} roughness={0.3} />
+          </mesh>
+          {[-1, 1].map(side => (
+            <mesh key={side} position={[side * (bw / 2 + 0.08), bh / 2 - 0.1, 0]}>
+              <boxGeometry args={[0.28, 0.22, bd * 1.1]} />
+              <meshStandardMaterial color="#ffcc00" emissive="#aa7700" emissiveIntensity={0.4} metalness={0.6} roughness={0.3} />
+            </mesh>
+          ))}
+        </>
+      )}
+
       {/* Villager hat */}
       {mob.type === 'villager' && (
         <mesh position={[0, bh / 2 + headSize + 0.05, 0]}>
@@ -195,7 +224,7 @@ function MobMesh({ mob, world, onPlayerDamage }: { mob: MobData; world: World; o
       )}
 
       {/* Health bar for hostile mobs */}
-      {mob.hostile && mob.health < mob.maxHealth && (
+      {mob.hostile && (mob.health < mob.maxHealth || mob.type === 'guardian') && (
         <group position={[0, bh / 2 + headSize + 0.4, 0]}>
           <mesh>
             <boxGeometry args={[0.8, 0.08, 0.02]} />

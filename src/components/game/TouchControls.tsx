@@ -12,7 +12,7 @@ const ATTACK_REPEAT_MS = 350;
  * - arrastar o dedo na tela para olhar; um toque rápido ataca
  * - botões de atacar e pular à direita, e um menu no topo
  */
-export function TouchControls({ onExit }: { onExit?: () => void }) {
+export function TouchControls({ onExit, onPower }: { onExit?: () => void; onPower?: () => void }) {
   useEffect(() => () => {
     // Ao sair do jogo, solta tudo
     Object.assign(touchInput, { moveX: 0, moveY: 0, lookDX: 0, lookDY: 0, jump: false, sprint: false, attacks: 0 });
@@ -22,7 +22,7 @@ export function TouchControls({ onExit }: { onExit?: () => void }) {
     <div className="absolute inset-0 select-none touch-none" style={{ WebkitTouchCallout: 'none' }}>
       <LookArea />
       <Joystick />
-      <ActionButtons />
+      <ActionButtons onPower={onPower} />
       <MenuBar onExit={onExit} />
       <RotateHint />
     </div>
@@ -100,7 +100,7 @@ function Joystick() {
   );
 }
 
-function ActionButtons() {
+function ActionButtons({ onPower }: { onPower?: () => void }) {
   const repeat = useRef<number | null>(null);
 
   const stopAttack = () => {
@@ -142,6 +142,17 @@ function ActionButtons() {
       >
         ⬆️
       </button>
+      {/* Poder da fruta */}
+      {onPower && (
+        <button
+          aria-label="Poder da fruta"
+          className={`${round} absolute bottom-2 right-0 w-14 h-14 text-2xl bg-purple-600/60 border-purple-200/70`}
+          onPointerDown={(e) => { e.preventDefault(); onPower(); }}
+          onContextMenu={(e) => e.preventDefault()}
+        >
+          ✨
+        </button>
+      )}
     </div>
   );
 }

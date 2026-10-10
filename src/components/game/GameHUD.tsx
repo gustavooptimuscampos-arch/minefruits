@@ -24,11 +24,15 @@ interface GameHUDProps {
   totalFruits?: number;
   /** Nome do bioma onde o jogador está (ex.: "🏜️ Deserto"). */
   biome?: string;
+  /** Poder da fruta atual e quanto falta para usar de novo. */
+  power?: { emoji: string; name: string; cooldown: number; remaining: number } | null;
+  /** Quantos Guardiões ainda protegem frutas. */
+  guardiansLeft?: number;
   /** Abre o menu de pausa (de lá o jogador pode sair). */
   onPause?: () => void;
 }
 
-export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, hunger, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false, totalFruits, biome, onPause }: GameHUDProps) {
+export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, hunger, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false, totalFruits, biome, power, guardiansLeft, onPause }: GameHUDProps) {
   return (
     <div className="absolute inset-0 pointer-events-none select-none" style={{ zIndex: 10 }}>
       {/* Crosshair */}
@@ -65,6 +69,9 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
           {biome && <div className="text-sm font-game text-foreground">{biome}</div>}
           <div className="text-sm font-game text-muted-foreground">⛏️ Blocos: <span className="text-foreground">{blocksDestroyed}</span></div>
           <div className="text-sm font-game text-muted-foreground">🍎 Frutas: <span className="text-foreground">{collectedFruits.length}{totalFruits ? ` de ${totalFruits}` : ''}</span></div>
+          {guardiansLeft !== undefined && guardiansLeft > 0 && (
+            <div className="text-sm font-game text-muted-foreground">🛡️ Guardiões: <span className="text-foreground">{guardiansLeft}</span></div>
+          )}
           <div className="text-sm font-game text-muted-foreground">💀 Mobs: <span className="text-foreground">{mobsKilled}</span></div>
           <div className="text-sm font-game text-muted-foreground">
             {isNight ? '🌙 Noite' : '☀️ Dia'}
@@ -133,10 +140,26 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
         <div className="text-center mt-1 hide-on-touch">
           <span className="text-[10px] font-game text-muted-foreground">
             {inventory.equippedItem ? ITEM_CONFIG[inventory.equippedItem].label : 'Mão vazia'}
-            {' • '}E craftar • B loja • R ranking • V câmera • T chat
+            {' • '}F poder • E craftar • B loja • R ranking • V câmera • T chat
           </span>
         </div>
       </div>
+
+      {/* Poder da fruta (tecla F) */}
+      {power && (
+        <div className="absolute bottom-[132px] left-1/2 -translate-x-1/2 hud-power">
+          <div className="relative overflow-hidden bg-background/70 backdrop-blur-sm rounded-lg px-3 py-1 border border-purple-400/50 flex items-center gap-2">
+            {power.remaining > 0 && (
+              <div className="absolute inset-y-0 left-0 bg-purple-500/30" style={{ width: `${(power.remaining / power.cooldown) * 100}%` }} />
+            )}
+            <span className="relative text-base">{power.emoji}</span>
+            <span className="relative text-xs font-game text-foreground">{power.name}</span>
+            <span className="relative text-[10px] font-pixel text-purple-300 hide-on-touch">
+              {power.remaining > 0 ? `${power.remaining.toFixed(1)}s` : 'F'}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Equipped item indicator */}
       {inventory.equippedItem && (

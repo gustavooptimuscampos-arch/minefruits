@@ -1,7 +1,7 @@
 import { World } from './world';
 import { WORLD_HALF, WATER_LEVEL } from './biomes';
 
-export type MobType = 'zombie' | 'skeleton' | 'spider' | 'cow' | 'pig' | 'chicken' | 'sheep' | 'villager';
+export type MobType = 'zombie' | 'skeleton' | 'spider' | 'cow' | 'pig' | 'chicken' | 'sheep' | 'villager' | 'guardian';
 
 export interface MobData {
   id: string;
@@ -12,6 +12,9 @@ export interface MobData {
   hostile: boolean;
   speed: number;
   dead: boolean;
+  /** Guardião: a fruta que ele protege e o lugar de onde não se afasta. */
+  guardsFruit?: string;
+  home?: [number, number, number];
 }
 
 export const MOB_CONFIG: Record<MobType, {
@@ -31,6 +34,7 @@ export const MOB_CONFIG: Record<MobType, {
   chicken: { color: '#f0f0f0', eyeColor: '#222222', health: 4, speed: 1.8, hostile: false, bodyScale: [0.3, 0.4, 0.3], label: '🐔 Galinha' },
   sheep: { color: '#eeeeea', eyeColor: '#222222', health: 8, speed: 1.3, hostile: false, bodyScale: [0.8, 1.45, 1.05], label: '🐑 Ovelha' },
   villager: { color: '#c4956a', eyeColor: '#5a3a1a', health: 20, speed: 1, hostile: false, bodyScale: [0.5, 1.1, 0.35], label: '👤 Aldeão' },
+  guardian: { color: '#4b2d7a', eyeColor: '#ffcc00', health: 90, speed: 2.6, hostile: true, bodyScale: [0.8, 1.6, 0.5], label: '🛡️ Guardião' },
 };
 
 export function spawnMobs(world: World, isNight: boolean): MobData[] {
@@ -82,4 +86,27 @@ export function spawnMobs(world: World, isNight: boolean): MobData[] {
   }
 
   return mobs;
+}
+
+/** Um Guardião (mini-chefe) para cada fruta. Ele não deixa pegar a fruta enquanto estiver vivo. */
+export function spawnGuardians(fruits: { id: string; position: [number, number, number] }[]): MobData[] {
+  const config = MOB_CONFIG.guardian;
+  return fruits.map((f, i) => {
+    const angle = i * 2.1;
+    const x = f.position[0] + Math.cos(angle) * 2.5;
+    const z = f.position[2] + Math.sin(angle) * 2.5;
+    const y = f.position[1] - 1.5;
+    return {
+      id: `guardian-${f.id}`,
+      type: 'guardian' as MobType,
+      position: [x, y + config.bodyScale[1] / 2, z] as [number, number, number],
+      health: config.health,
+      maxHealth: config.health,
+      hostile: true,
+      speed: config.speed,
+      dead: false,
+      guardsFruit: f.id,
+      home: [f.position[0], y, f.position[2]] as [number, number, number],
+    };
+  });
 }

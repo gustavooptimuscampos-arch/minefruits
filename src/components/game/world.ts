@@ -25,6 +25,8 @@ export class World {
   /** Bloco mais alto de cada coluna (sem contar água); -1 se vazia. */
   private top: Int16Array;
   private chunkVersions: Int32Array;
+  /** Meio de cada ravina (chão), usado para esconder a fruta das Trevas lá embaixo. */
+  ravineSpots: [number, number, number][] = [];
 
   constructor(size: number) {
     this.size = size;

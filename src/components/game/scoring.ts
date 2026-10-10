@@ -11,6 +11,7 @@ export const MOB_POINTS: Record<MobType, number> = {
   chicken: 5,
   sheep: 10,
   villager: 0,
+  guardian: 150,
 };
 
 // Points awarded per fruit collected

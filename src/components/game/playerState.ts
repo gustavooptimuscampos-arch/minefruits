@@ -9,3 +9,26 @@ export const playerPosition = new THREE.Vector3(0, 8, 0);
 
 /** Posições vivas dos mobs (usado pelo cachorro). */
 export const mobRegistry = new Map<string, { pos: THREE.Vector3; hostile: boolean }>();
+
+/** Para onde o jogador está olhando (atualizado pelo Player a cada frame). */
+export const playerLook = new THREE.Vector3(0, 0, -1);
+
+/** Efeitos de poder nos mobs: até quando cada um fica congelado (ms). */
+export const mobFrozenUntil = new Map<string, number>();
+
+/** Pedidos dos poderes para o Player executar no próximo frame. */
+export const playerCommands: { dash: THREE.Vector3 | null } = { dash: null };
+
+/** Efeitos visuais dos poderes em andamento (desenhados pelo PowerEffects). */
+export interface PowerEffect {
+  id: number;
+  kind: 'flame' | 'ice' | 'light' | 'dark' | 'rubber';
+  pos: THREE.Vector3;
+  start: number;
+  radius: number;
+}
+export const powerEffects: PowerEffect[] = [];
+let effectId = 0;
+export function addPowerEffect(kind: PowerEffect['kind'], pos: THREE.Vector3, radius: number) {
+  powerEffects.push({ id: effectId++, kind, pos: pos.clone(), start: performance.now(), radius });
+}

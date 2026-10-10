@@ -12,7 +12,7 @@ import { touchInput, isTouchDevice } from './touchInput';
 const TOUCH_LOOK_SPEED = 0.0055;
 const MAX_PITCH = Math.PI / 2 - 0.05;
 import { isTypingTarget } from './keyboard';
-import { playerPosition } from './playerState';
+import { playerPosition, playerLook, playerCommands, mobRegistry } from './playerState';
 
 interface PlayerProps {
   world: World;
@@ -32,6 +32,9 @@ interface PlayerProps {
   /** Muda a cada morte: o jogador volta para o ponto de nascimento. */
   respawnKey?: number;
   aura?: { color: string; emissive: string } | null;
+  /** Poderes passivos da fruta: pulo mais alto (Borracha), corrida mais rápida (Luz). */
+  jumpBoost?: number;
+  speedBoost?: number;
 }
 
 type WebkitWindow = Window & { webkitAudioContext?: typeof AudioContext };
@@ -108,7 +111,7 @@ function playFootstep(ref: React.MutableRefObject<AudioContext | null>, gain: nu
   } catch { /* audio unavailable */ }
 }
 
-export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, controlsEnabled = true, respawnKey = 0, aura }: PlayerProps) {
+export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, controlsEnabled = true, respawnKey = 0, aura, jumpBoost = 1, speedBoost = 1 }: PlayerProps) {
   const { camera } = useThree();
   const controlsRef = useRef<React.ElementRef<typeof PointerLockControls>>(null);
   const velocity = useRef(new THREE.Vector3(0, 0, 0));
@@ -131,6 +134,10 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
   const audioRef = useRef<AudioContext | null>(null);
   const attackRef = useRef<() => void>(() => {});
   const lookEuler = useRef(new THREE.Euler(0, 0, 0, 'YXZ'));
+  const jumpBoostRef = useRef(jumpBoost);
+  jumpBoostRef.current = jumpBoost;
+  const speedBoostRef = useRef(speedBoost);
+  speedBoostRef.current = speedBoost;
   const controlsEnabledRef = useRef(controlsEnabled);
   controlsEnabledRef.current = controlsEnabled;
   worldRef.current = world;
@@ -230,7 +237,9 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
       const currentMobs = mobsRef.current;
       for (const mob of currentMobs) {
         if (mob.dead) continue;
-        const mobPos = new THREE.Vector3(...mob.position);
+        // Posição de verdade do mob (antes usava onde ele nasceu e o golpe errava quem andou)
+        const live = mobRegistry.get(mob.id);
+        const mobPos = live ? live.pos.clone() : new THREE.Vector3(...mob.position);
         const origin = thirdPersonRef.current ? playerPos.current : camera.position;
         const toMob = mobPos.clone().sub(origin);
         const dist = toMob.length();
@@ -319,7 +328,7 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
     // Speed depends on sprint / crouch state
     const sprinting = (sprintRef.current || touchInput.sprint) && isMoving && !crouchRef.current;
     const crouching = crouchRef.current;
-    const targetSpeed = SPEED * (sprinting ? SPRINT_MULT : crouching ? CROUCH_MULT : 1);
+    const targetSpeed = SPEED * speedBoostRef.current * (sprinting ? SPRINT_MULT : crouching ? CROUCH_MULT : 1);
 
     // Acceleration + friction gives the movement weight (inertia)
     const desired = moveDir.clone().multiplyScalar(targetSpeed);
@@ -342,6 +351,17 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
       }
       return false;
     };
+    // Poder da Luz: avança rápido na direção do olhar, parando antes de uma parede
+    if (playerCommands.dash) {
+      const d = playerCommands.dash;
+      playerCommands.dash = null;
+      const steps = Math.ceil(d.length() / 0.25);
+      const stepX = d.x / steps, stepZ = d.z / steps;
+      for (let i = 0; i < steps; i++) {
+        if (bodyBlocked(currentWorld, pos.x + stepX, feet, pos.z + stepZ)) break;
+        pos.x += stepX; pos.z += stepZ;
+      }
+    }
     if (!tryMove(pos.x + horizVel.current.x * dt, pos.z)) horizVel.current.x = 0;
     if (!tryMove(pos.x, pos.z + horizVel.current.z * dt)) horizVel.current.z = 0;
 
@@ -350,7 +370,7 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
     const onGround = feet - groundY <= 0.08;
 
     if ((jump || (touchInput.jump && controlsEnabledRef.current)) && onGround) {
-      velocity.current.y = JUMP_SPEED;
+      velocity.current.y = JUMP_SPEED * jumpBoostRef.current;
     }
 
     let newFeet = feet + velocity.current.y * dt;
@@ -375,6 +395,7 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
     // Store yaw for model rotation
     playerYaw.current = Math.atan2(forwardDir.x, forwardDir.z);
     playerPosition.copy(playerPos.current);
+    camera.getWorldDirection(playerLook);
 
     if (thirdPersonRef.current) {
       // Third person: camera behind player

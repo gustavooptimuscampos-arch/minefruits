@@ -162,6 +162,7 @@ function carveRavines(world: World, layout: BiomeLayout) {
     const length = 30 + Math.floor(rand() * 25);
     const floor = 2 + Math.floor(rand() * 2);
     for (let t = 0; t < length; t++) {
+      if (t === Math.floor(length / 2)) world.ravineSpots.push([Math.round(cx), floor, Math.round(cz)]);
       const k = Math.sin((Math.PI * t) / length); // mais larga e alta no meio
       const width = 1 + 1.8 * k;
       const ceil = floor + 3 + Math.round((CAVE_TOP - floor - 2) * k);
@@ -342,18 +343,63 @@ function landSpots(world: World, rand: () => number, count: number, minDist: num
   return spots;
 }
 
-export function generateFruits(world: World, seed = 1): Fruit[] {
+/** Onde fica cada fruta especial: no bioma que combina com ela. */
+const FRUIT_HOMES: [FruitType, BiomeId][] = [['flame', 'desert'], ['ice', 'taiga'], ['rubber', 'jungle'], ['light', 'mountains']];
+
+function isGoodSpot(world: World, x: number, z: number) {
+  const g = world.groundHeight(x, z);
+  const top = world.get(x, g - 1, z);
+  return g > WATER_LEVEL + 1 && !!top && top !== 'water' && top !== 'ice' && !PLANT_BLOCKS.includes(top);
+}
+
+/** Procura, em espiral a partir do centro do bioma, um lugar firme dentro dele. */
+function spotInBiome(world: World, layout: BiomeLayout, biome: BiomeId, highest: boolean): [number, number] | null {
+  const center = layout.centers.find(c => c.biome === biome);
+  if (!center) return null;
+  let best: [number, number] | null = null;
+  let bestH = -1;
+  for (let r = 0; r <= 14; r++) {
+    for (let dx = -r; dx <= r; dx++) for (let dz = -r; dz <= r; dz++) {
+      if (Math.max(Math.abs(dx), Math.abs(dz)) !== r) continue;
+      const x = Math.round(center.x) + dx, z = Math.round(center.z) + dz;
+      if (Math.abs(x) >= WORLD_HALF - 3 || Math.abs(z) >= WORLD_HALF - 3) continue;
+      if (biomeAt(x, z, layout) !== biome || !isGoodSpot(world, x, z)) continue;
+      if (!highest) return [x, z];
+      const h = world.groundHeight(x, z);
+      if (h > bestH) { bestH = h; best = [x, z]; }
+    }
+  }
+  return best;
+}
+
+/**
+ * As frutas ficam em lugares difíceis, cada uma protegida por um Guardião:
+ * Fogo no deserto, Gelo na taiga, Borracha na selva, Luz no pico da montanha
+ * e Trevas no fundo de uma ravina (só cavando ~30 blocos). Mais 3 espalhadas.
+ */
+export function generateFruits(world: World, seed = 1, layout?: BiomeLayout): Fruit[] {
   const fruitTypes: FruitType[] = ['flame', 'ice', 'light', 'dark', 'rubber'];
   const rand = mulberry32(seed + 101);
-  return landSpots(world, rand, 15, 12).map((pos, i) => {
-    const groundY = world.groundHeight(pos[0], pos[1]);
-    return {
-      id: `fruit-${i}`,
-      position: [pos[0] + 0.5, groundY + 1.5, pos[1] + 0.5] as [number, number, number],
-      type: fruitTypes[i % fruitTypes.length],
-      collected: false,
-    };
-  });
+  const placed: { type: FruitType; position: [number, number, number] }[] = [];
+  const at = (x: number, z: number): [number, number, number] => [x + 0.5, world.groundHeight(x, z) + 1.5, z + 0.5];
+
+  if (layout) {
+    for (const [type, biome] of FRUIT_HOMES) {
+      const spot = spotInBiome(world, layout, biome, biome === 'mountains');
+      if (spot) placed.push({ type, position: at(spot[0], spot[1]) });
+    }
+  }
+  const ravine = world.ravineSpots.find(([x, y, z]) => world.groundHeight(x, z) - y > 12);
+  if (ravine) placed.push({ type: 'dark', position: [ravine[0] + 0.5, ravine[1] + 1.5, ravine[2] + 0.5] });
+
+  // Completa até 8 frutas em lugares aleatórios
+  const extra = landSpots(world, rand, 8, 14).filter(([x, z]) => placed.every(p => Math.hypot(p.position[0] - x, p.position[2] - z) > 14));
+  for (const [x, z] of extra) {
+    if (placed.length >= 8) break;
+    placed.push({ type: fruitTypes[placed.length % fruitTypes.length], position: at(x, z) });
+  }
+
+  return placed.map((p, i) => ({ id: `fruit-${i}`, position: p.position, type: p.type, collected: false }));
 }
 
 export function generateCoins(world: World, seed = 1): GameCoin[] {

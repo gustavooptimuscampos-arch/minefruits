@@ -13,7 +13,7 @@ import { GameHUD } from './GameHUD';
 import { CraftingUI } from './CraftingUI';
 import { GameChat, ChatMessage } from './GameChat';
 import { FruitType, MINING_REQUIREMENTS, BLOCK_DROPS, UNBREAKABLE, TOOL_DAMAGE, ITEM_CONFIG, AccessoryType, SHOP_ITEMS, FRUIT_CONFIG, Fruit, GameCoin } from './types';
-import { MobData, MOB_CONFIG, spawnMobs } from './mobs';
+import { MobData, MOB_CONFIG, spawnMobs, spawnGuardians } from './mobs';
 import { SkinData } from './skins';
 import { useMultiplayer } from './useMultiplayer';
 import { useInventory } from './useInventory';
@@ -25,7 +25,9 @@ import { TouchControls } from './TouchControls';
 import { isTouchDevice } from './touchInput';
 import { isTypingTarget } from './keyboard';
 import { BIOMES, BiomeId, biomeAt, buildBiomeLayout, seedFromString } from './biomes';
-import { playerPosition } from './playerState';
+import { playerPosition, playerLook, playerCommands, mobRegistry, mobFrozenUntil, addPowerEffect } from './playerState';
+import { PowerEffects } from './PowerEffects';
+import { FRUIT_POWERS } from './powers';
 
 interface GameCanvasProps {
   skin: SkinData;
@@ -41,7 +43,7 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
   // O mundo é um objeto que muda no lugar; "worldVersion" avisa o React para redesenhar
   const world = useMemo(() => generateTerrain(biomeLayout), [biomeLayout]);
   const [worldVersion, setWorldVersion] = useState(0);
-  const initialFruits = useMemo(() => generateFruits(world, worldSeed), [world, worldSeed]);
+  const initialFruits = useMemo(() => generateFruits(world, worldSeed, biomeLayout), [world, worldSeed, biomeLayout]);
   const [fruits, setFruits] = useState(initialFruits);
   const initialCoins = useMemo(() => generateCoins(world, worldSeed), [world, worldSeed]);
   const [coins, setCoins] = useState(initialCoins);
@@ -69,6 +71,10 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
   const [respawnKey, setRespawnKey] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [biome, setBiome] = useState<BiomeId>('plains');
+  // Poder da última fruta comida (como no Blox Fruits, um poder por vez)
+  const [power, setPower] = useState<FruitType | null>(null);
+  const [powerReadyAt, setPowerReadyAt] = useState(0);
+  const [now, setNow] = useState(() => performance.now());
 
   const inventory = useInventory();
   const { craftingOpen, setCraftingOpen, setSelectedSlot, equippedItem, collectBlock } = inventory;
@@ -182,16 +188,17 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
 
   useEffect(() => {
     if (!spawnedRef.current) {
-      applyMobs(spawnMobs(world, false));
+      applyMobs([...spawnGuardians(initialFruits), ...spawnMobs(world, false)]);
       spawnedRef.current = true;
     }
-  }, [world, applyMobs]);
+  }, [world, applyMobs, initialFruits]);
 
   const handleTimeChange = useCallback((_time: number, night: boolean) => {
     if (night !== wasNightRef.current) {
       wasNightRef.current = night;
       setIsNight(night);
-      applyMobs(spawnMobs(world, night));
+      // Os Guardiões continuam (vivos ou derrotados); só os mobs comuns trocam
+      applyMobs([...mobsRef.current.filter(m => m.type === 'guardian'), ...spawnMobs(world, night)]);
     }
   }, [world, applyMobs]);
 
@@ -212,6 +219,8 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
     onLockChange();
     return () => document.removeEventListener('pointerlockchange', onLockChange);
   }, []);
+
+  const usePowerRef = useRef(() => {});
 
   // Atalhos do jogo
   useEffect(() => {
@@ -246,6 +255,7 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
         setShowRanking(prev => !prev);
         releasePointer();
       }
+      if (e.code === 'KeyF') usePowerRef.current();
       if (e.code >= 'Digit1' && e.code <= 'Digit9') {
         setSelectedSlot(parseInt(e.code.replace('Digit', '')) - 1);
       }
@@ -283,9 +293,19 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
     setBlocksDestroyed(d => d + 1);
   }, [world, equippedItem, collectBlock, showNotice]);
 
+  const lockNoticeAt = useRef(0);
   const handleFruitCollect = useCallback((id: string) => {
     const fruit = fruitsRef.current.find(f => f.id === id);
     if (!fruit || fruit.collected) return;
+    // Fruta protegida: precisa derrotar o Guardião primeiro
+    const guardian = mobsRef.current.find(m => m.guardsFruit === id && !m.dead);
+    if (guardian) {
+      if (performance.now() - lockNoticeAt.current > 2500) {
+        lockNoticeAt.current = performance.now();
+        showNotice('🛡️ Derrote o Guardião para pegar a fruta!');
+      }
+      return;
+    }
     fruitsRef.current = fruitsRef.current.map(f => f.id === id ? { ...f, collected: true } : f);
     setFruits(fruitsRef.current);
 
@@ -299,7 +319,11 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
       if (existing) return prev.map(e => e === existing ? { ...e, count: e.count + 1, points: e.points + pts } : e);
       return [...prev, { type: 'fruit', name: config.name, emoji: config.power.split(' ')[0], points: pts, count: 1 }];
     });
-  }, []);
+    // Comer a fruta dá o poder dela (troca o poder anterior)
+    setPower(fruit.type);
+    setPowerReadyAt(0);
+    showNotice(`${FRUIT_POWERS[fruit.type].emoji} Você ganhou o poder ${FRUIT_POWERS[fruit.type].name}! Aperte F`);
+  }, [showNotice]);
 
   /** Dano em mob. Usado pelo jogador e pelo cachorro. */
   const handleMobHit = useCallback((id: string, damage: number) => {
@@ -325,7 +349,77 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
     });
     // Animais deixam comida (recupera fome)
     if (!mob.hostile) setHunger(h => Math.min(100, h + 15));
-  }, [applyMobs]);
+    if (mob.type === 'guardian') {
+      setVoxelCoins(c => c + 10);
+      showNotice('🛡️ Guardião derrotado! A fruta está livre');
+    }
+  }, [applyMobs, showNotice]);
+
+  /** Usa o poder da fruta (tecla F ou botão ✨ no celular). */
+  const usePower = useCallback(() => {
+    if (!power) { showNotice('🍎 Pegue uma fruta para ganhar um poder'); return; }
+    const t = performance.now();
+    if (t < powerReadyAt) return;
+    const info = FRUIT_POWERS[power];
+    setPowerReadyAt(t + info.cooldown * 1000);
+
+    const me = playerPosition.clone();
+    const look = playerLook.clone();
+    const flat = new THREE.Vector3(look.x, 0, look.z).normalize();
+    const hostiles = mobsRef.current.filter(m => !m.dead && m.hostile);
+    const near = (r: number) => hostiles.filter(m => { const p = mobRegistry.get(m.id)?.pos; return !!p && p.distanceTo(me) <= r; });
+
+    if (power === 'flame') {
+      // Bola de fogo: queima tudo num cone à frente
+      const center = me.clone().addScaledVector(flat, 3.5);
+      addPowerEffect('flame', center, 3.5);
+      for (const m of near(8)) {
+        const p = mobRegistry.get(m.id)!.pos;
+        const to = new THREE.Vector3(p.x - me.x, 0, p.z - me.z).normalize();
+        if (to.dot(flat) > 0.45) handleMobHit(m.id, info.damage);
+      }
+    } else if (power === 'ice') {
+      // Congela os monstros em volta
+      addPowerEffect('ice', me, 9);
+      for (const m of near(9)) {
+        mobFrozenUntil.set(m.id, t + 5000);
+        handleMobHit(m.id, info.damage);
+      }
+    } else if (power === 'light') {
+      // Teleporte de luz para a frente
+      addPowerEffect('light', me, 2);
+      playerCommands.dash = flat.clone().multiplyScalar(12);
+      setTimeout(() => addPowerEffect('light', playerPosition, 2.5), 50);
+    } else if (power === 'dark') {
+      // Buraco negro: machuca todos em volta e rouba vida
+      addPowerEffect('dark', me, 10);
+      const hit = near(10);
+      hit.forEach(m => handleMobHit(m.id, info.damage));
+      if (hit.length) setPlayerHealth(h => Math.min(100, h + 5 * hit.length));
+    } else if (power === 'rubber') {
+      // Soco de borracha: estica e acerta o primeiro monstro na mira
+      const target = near(14)
+        .map(m => ({ m, p: mobRegistry.get(m.id)!.pos }))
+        .filter(({ p }) => p.clone().sub(me).normalize().dot(look) > 0.85)
+        .sort((a, b) => a.p.distanceTo(me) - b.p.distanceTo(me))[0];
+      addPowerEffect('rubber', target ? target.p : me.clone().addScaledVector(look, 6), 1.6);
+      if (target) handleMobHit(target.m.id, info.damage);
+    }
+  }, [power, powerReadyAt, handleMobHit, showNotice]);
+  useEffect(() => { usePowerRef.current = usePower; }, [usePower]);
+  // Atualiza a barra de recarga do poder
+  useEffect(() => {
+    if (now >= powerReadyAt) return;
+    const id = setTimeout(() => setNow(performance.now()), 100);
+    return () => clearTimeout(id);
+  }, [now, powerReadyAt]);
+  useEffect(() => { setNow(performance.now()); }, [powerReadyAt]);
+
+  /** O cachorro ajuda, mas quase não machuca o Guardião (senão a fruta ficava fácil). */
+  const handleDogHit = useCallback((id: string, damage: number) => {
+    const mob = mobsRef.current.find(m => m.id === id);
+    handleMobHit(id, mob?.type === 'guardian' ? 1 : damage);
+  }, [handleMobHit]);
 
   /** Ataque do jogador: soma o dano da arma equipada (o cachorro não ganha esse bônus). */
   const handlePlayerAttack = useCallback((id: string, damage: number) => {
@@ -386,6 +480,11 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
     return item?.color ? { color: item.color, emissive: item.emissive || item.color } : null;
   }, [equippedItems]);
 
+  const lockedFruitIds = useMemo(
+    () => new Set(mobs.filter(m => m.type === 'guardian' && !m.dead && m.guardsFruit).map(m => m.guardsFruit!)),
+    [mobs],
+  );
+
   return (
     <div id="game-canvas" className="relative w-full h-[100dvh] overflow-hidden touch-none select-none" style={{ background: '#87CEEB', overscrollBehavior: 'none' }}>
       <Canvas
@@ -404,9 +503,10 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
         <DayNightCycle onTimeChange={handleTimeChange} speed={0.000556} />
         <Weather />
         <Terrain world={world} version={worldVersion} />
-        <Fruits fruits={fruits} />
+        <Fruits fruits={fruits} lockedIds={lockedFruitIds} />
+        <PowerEffects />
         <CoinsRenderer coins={coins} />
-        <Dog world={world} onMobHit={handleMobHit} />
+        <Dog world={world} onMobHit={handleDogHit} />
         <MobsRenderer mobs={mobs} world={world} onPlayerDamage={handlePlayerDamage} />
         <Player
           world={world} fruits={fruits} mobs={mobs} coins={coins} skin={effectiveSkin}
@@ -414,12 +514,13 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
           onMobHit={handlePlayerAttack} sendPosition={isMultiplayer ? mp.sendPosition : undefined}
           playerHealth={playerHealth} equippedItem={equippedItem}
           controlsEnabled={!anyOverlay} respawnKey={respawnKey} aura={auraData}
+          jumpBoost={power === 'rubber' ? 1.6 : 1} speedBoost={power === 'light' ? 1.25 : 1}
         />
         {isMultiplayer && <RemotePlayersRenderer players={mp.remotePlayers} />}
       </Canvas>
 
       {/* No celular, "Sair" abre a pausa (com Continuar / Sair), igual ao ESC no computador */}
-      {isTouchDevice && !dead && <TouchControls onExit={() => setPaused(true)} />}
+      {isTouchDevice && !dead && <TouchControls onExit={() => setPaused(true)} onPower={() => usePowerRef.current()} />}
 
       <GameHUD
         score={score} collectedFruits={collectedFruits} blocksDestroyed={blocksDestroyed}
@@ -429,6 +530,8 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
         inventory={inventory} voxelCoins={voxelCoins} locked={locked || anyOverlay}
         totalFruits={fruits.length}
         biome={`${BIOMES[biome].emoji} ${BIOMES[biome].name}`}
+        power={power ? { emoji: FRUIT_POWERS[power].emoji, name: FRUIT_POWERS[power].name, cooldown: FRUIT_POWERS[power].cooldown, remaining: Math.max(0, (powerReadyAt - now) / 1000) } : null}
+        guardiansLeft={mobs.filter(m => m.type === 'guardian' && !m.dead).length}
         onPause={() => { releasePointer(); setPaused(true); }}
       />
 
@@ -517,7 +620,7 @@ export function GameCanvas({ skin, multiplayer, onExit }: GameCanvasProps) {
 
             <div className="mt-4 p-3 bg-muted/20 rounded-lg border border-border/30">
               <p className="text-xs font-game text-muted-foreground text-center">
-                🧟 Zumbi: 50pts • 💀 Esqueleto: 60pts • 🕷️ Aranha: 40pts
+                🛡️ Guardião: 150pts • 🧟 Zumbi: 50pts • 💀 Esqueleto: 60pts • 🕷️ Aranha: 40pts
               </p>
               <p className="text-xs font-game text-muted-foreground text-center mt-1">
                 🔥 Fogo: 200pts • ❄️ Gelo: 150pts • ⚡ Luz: 250pts • 🌑 Trevas: 300pts • 🩷 Borracha: 100pts
