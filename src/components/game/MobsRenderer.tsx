@@ -24,6 +24,33 @@ export function MobsRenderer({ mobs, world, onPlayerDamage }: MobsRendererProps)
   );
 }
 
+/** Barra de vida que aparece quando o mob leva dano (Guardião: sempre). */
+function HealthBar({ health, max, y }: { health: number; max: number; y: number }) {
+  const k = Math.max(0, health / max);
+  return (
+    <group position={[0, y, 0]}>
+      <mesh>
+        <boxGeometry args={[0.8, 0.08, 0.02]} />
+        <meshBasicMaterial color="#333" />
+      </mesh>
+      <mesh position={[(k - 1) * 0.4, 0, 0.01]}>
+        <boxGeometry args={[0.8 * k, 0.06, 0.02]} />
+        <meshBasicMaterial color={k > 0.5 ? '#4CAF50' : '#f44336'} />
+      </mesh>
+    </group>
+  );
+}
+
+/** Caixa vermelha transparente que pisca quando o mob leva dano. */
+function HurtFlash({ meshRef, size, y }: { meshRef: React.RefObject<THREE.Mesh>; size: [number, number, number]; y: number }) {
+  return (
+    <mesh ref={meshRef} position={[0, y, 0]} visible={false}>
+      <boxGeometry args={size} />
+      <meshBasicMaterial color="#ff2a2a" transparent opacity={0} depthWrite={false} />
+    </mesh>
+  );
+}
+
 function MobMesh({ mob, world, onPlayerDamage }: { mob: MobData; world: World; onPlayerDamage: (damage: number) => void }) {
   const groupRef = useRef<THREE.Group>(null);
   const config = MOB_CONFIG[mob.type];
@@ -41,9 +68,29 @@ function MobMesh({ mob, world, onPlayerDamage }: { mob: MobData; world: World; o
 
   useEffect(() => {
     const g = groupRef.current;
-    if (g) mobRegistry.set(mob.id, { pos: g.position, hostile: mob.hostile });
+    const [bw0, bh0, bd0] = MOB_CONFIG[mob.type].bodyScale;
+    const animal = ANIMAL_TYPES.includes(mob.type as AnimalType);
+    if (g) mobRegistry.set(mob.id, {
+      pos: g.position,
+      hostile: mob.hostile,
+      centerY: animal ? Math.max(0.35, bh0 * 0.75) : 0,
+      radius: Math.max(0.45, Math.max(bw0, bh0, bd0) * 0.6),
+    });
     return () => { mobRegistry.delete(mob.id); };
-  }, [mob.id, mob.hostile]);
+  }, [mob.id, mob.hostile, mob.type]);
+
+  // Levou dano: pisca em vermelho e é empurrado para trás
+  const lastHealth = useRef(mob.health);
+  useEffect(() => {
+    if (mob.health < lastHealth.current && groupRef.current) {
+      hurtFlash.current = 0.35;
+      const g = groupRef.current.position;
+      const away = new THREE.Vector3(g.x - playerPosition.x, 0, g.z - playerPosition.z);
+      if (away.lengthSq() > 0.0001) g.addScaledVector(away.normalize(), 0.6);
+    }
+    lastHealth.current = mob.health;
+  }, [mob.health]);
+  const flashRef = useRef<THREE.Mesh>(null);
 
   useFrame((_, delta) => {
     if (!groupRef.current) return;
@@ -53,6 +100,10 @@ function MobMesh({ mob, world, onPlayerDamage }: { mob: MobData; world: World; o
     wanderTimer.current += dt;
     attackCooldown.current = Math.max(0, attackCooldown.current - dt);
     hurtFlash.current = Math.max(0, hurtFlash.current - dt);
+    if (flashRef.current) {
+      flashRef.current.visible = hurtFlash.current > 0;
+      (flashRef.current.material as THREE.MeshBasicMaterial).opacity = Math.min(0.6, hurtFlash.current * 2);
+    }
 
     const distToPlayer = pos.distanceTo(playerPosition);
     const isGuardian = mob.type === 'guardian';
@@ -126,6 +177,8 @@ function MobMesh({ mob, world, onPlayerDamage }: { mob: MobData; world: World; o
     return (
       <group ref={groupRef} position={mob.position}>
         <AnimalModel type={mob.type as AnimalType} moving={moving} />
+        <HurtFlash meshRef={flashRef} size={[bw * 1.4, bh * 1.6, Math.max(bd, bw) * 2]} y={bh * 0.75} />
+        {mob.health < mob.maxHealth && <HealthBar health={mob.health} max={mob.maxHealth} y={bh * 1.6 + 0.5} />}
       </group>
     );
   }
@@ -223,19 +276,11 @@ function MobMesh({ mob, world, onPlayerDamage }: { mob: MobData; world: World; o
         </>
       )}
 
-      {/* Health bar for hostile mobs */}
-      {mob.hostile && (mob.health < mob.maxHealth || mob.type === 'guardian') && (
-        <group position={[0, bh / 2 + headSize + 0.4, 0]}>
-          <mesh>
-            <boxGeometry args={[0.8, 0.08, 0.02]} />
-            <meshBasicMaterial color="#333" />
-          </mesh>
-          <mesh position={[(mob.health / mob.maxHealth - 1) * 0.4, 0, 0.01]}>
-            <boxGeometry args={[0.8 * (mob.health / mob.maxHealth), 0.06, 0.02]} />
-            <meshBasicMaterial color={mob.health / mob.maxHealth > 0.5 ? '#4CAF50' : '#f44336'} />
-          </mesh>
-        </group>
+      {/* Barra de vida */}
+      {(mob.health < mob.maxHealth || mob.type === 'guardian') && (
+        <HealthBar health={mob.health} max={mob.maxHealth} y={bh / 2 + headSize + 0.4} />
       )}
+      <HurtFlash meshRef={flashRef} size={[bw * 1.3, bh * 1.2 + headSize, bd * 1.6]} y={headSize / 2} />
 
     </group>
   );

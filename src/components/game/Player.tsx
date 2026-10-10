@@ -233,24 +233,28 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
 
+      // Mira: o mob mais perto cujo corpo está na linha do olhar.
+      // Antes mirava nos pés dos animais (e na posição onde nasceram), então o golpe
+      // errava e acabava quebrando o bloco do chão.
       let hitMob = false;
-      const currentMobs = mobsRef.current;
-      for (const mob of currentMobs) {
+      const origin = thirdPersonRef.current ? playerPos.current : camera.position;
+      let best: { id: string; along: number } | null = null;
+      for (const mob of mobsRef.current) {
         if (mob.dead) continue;
-        // Posição de verdade do mob (antes usava onde ele nasceu e o golpe errava quem andou)
         const live = mobRegistry.get(mob.id);
-        const mobPos = live ? live.pos.clone() : new THREE.Vector3(...mob.position);
-        const origin = thirdPersonRef.current ? playerPos.current : camera.position;
-        const toMob = mobPos.clone().sub(origin);
-        const dist = toMob.length();
-        if (dist > ATTACK_RANGE) continue;
-        toMob.normalize();
-        const dot = dir.dot(toMob);
-        if (dot > 0.7) {
-          onMobHit(mob.id, ATTACK_DAMAGE);
-          hitMob = true;
-          break;
-        }
+        if (!live) continue;
+        const center = live.pos.clone();
+        center.y += live.centerY;
+        const toMob = center.sub(origin);
+        const along = toMob.dot(dir);
+        if (along < 0 || along > ATTACK_RANGE + live.radius) continue;
+        const missBy = toMob.addScaledVector(dir, -along).length();
+        if (missBy > live.radius + 0.25) continue;
+        if (!best || along < best.along) best = { id: mob.id, along };
+      }
+      if (best) {
+        onMobHit(best.id, ATTACK_DAMAGE);
+        hitMob = true;
       }
 
       if (!hitMob) {

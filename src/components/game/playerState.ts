@@ -7,8 +7,12 @@ import * as THREE from 'three';
  */
 export const playerPosition = new THREE.Vector3(0, 8, 0);
 
-/** Posições vivas dos mobs (usado pelo cachorro). */
-export const mobRegistry = new Map<string, { pos: THREE.Vector3; hostile: boolean }>();
+/**
+ * Posições vivas dos mobs (usado pelo cachorro e pelos golpes).
+ * centerY: quanto subir a partir de "pos" para chegar no meio do corpo
+ * (os animais têm a posição nos pés).
+ */
+export const mobRegistry = new Map<string, { pos: THREE.Vector3; hostile: boolean; centerY: number; radius: number }>();
 
 /** Para onde o jogador está olhando (atualizado pelo Player a cada frame). */
 export const playerLook = new THREE.Vector3(0, 0, -1);
