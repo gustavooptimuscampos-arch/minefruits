@@ -274,3 +274,12 @@ export const SHOP_ITEMS: ShopItem[] = [
   { id: 'diamond_pack', name: '💎 5 Diamantes', cost: 100, type: 'item', description: '5 diamantes grátis' },
   { id: 'torch_pack', name: '🔥 20 Tochas', cost: 20, type: 'item', description: '20 tochas prontas' },
 ];
+
+/** Itens que viram bloco quando você coloca no mundo (botão direito). */
+export const PLACEABLE: Partial<Record<ItemType, BlockType>> = {
+  dirt: 'dirt', sand: 'sand', sandstone: 'sandstone', snow: 'snow', ice: 'ice',
+  cobblestone: 'cobblestone', stone: 'stone', planks: 'planks', wood: 'wood',
+  leaves: 'leaves', cactus: 'cactus', flower: 'flower', obsidian: 'obsidian',
+  glowstone: 'glowstone', netherrack: 'netherrack', nether_brick: 'nether_brick',
+  torch: 'torch', door: 'door', crafting_table: 'crafting_table',
+};

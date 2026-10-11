@@ -21,6 +21,9 @@ interface PlayerProps {
   coins?: GameCoin[];
   skin: SkinData;
   onBlockBreak: (key: string) => void;
+  /** Botão direito: coloca o bloco da mão neste lugar (ou come, se for comida). */
+  onBlockPlace?: (x: number, y: number, z: number) => void;
+  onUseItem?: () => void;
   onFruitCollect: (id: string) => void;
   onCoinCollect?: (id: string) => void;
   onMobHit: (id: string, damage: number) => void;
@@ -111,12 +114,18 @@ function playFootstep(ref: React.MutableRefObject<AudioContext | null>, gain: nu
   } catch { /* audio unavailable */ }
 }
 
-export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, controlsEnabled = true, respawnKey = 0, aura, jumpBoost = 1, speedBoost = 1 }: PlayerProps) {
+export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, onBlockPlace, onUseItem, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, controlsEnabled = true, respawnKey = 0, aura, jumpBoost = 1, speedBoost = 1 }: PlayerProps) {
   const { camera } = useThree();
   const controlsRef = useRef<React.ElementRef<typeof PointerLockControls>>(null);
   const velocity = useRef(new THREE.Vector3(0, 0, 0));
   const moveState = useRef({ forward: false, backward: false, left: false, right: false, jump: false });
   const worldRef = useRef(world);
+  // O GameCanvas decide se coloca bloco ou usa o item (comida); o Player só acha o lugar
+  const placeRef = useRef(onBlockPlace);
+  placeRef.current = onBlockPlace;
+  const useItemRef = useRef(onUseItem);
+  useItemRef.current = onUseItem;
+  const placeActionRef = useRef<() => void>(() => {});
   const fruitsRef = useRef(fruits);
   const mobsRef = useRef(mobs);
   const [thirdPerson, setThirdPerson] = useState(false);
@@ -273,11 +282,43 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
       }
     };
     attackRef.current = attack;
+
+    // Colocar bloco: segue a mira até achar um bloco e coloca no espaço vazio logo antes dele
+    const place = () => {
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      const origin = thirdPersonRef.current ? playerPos.current.clone() : camera.position.clone();
+      let last: [number, number, number] | null = null;
+      for (let d = 0.2; d < 5.5; d += 0.1) {
+        const p = origin.clone().addScaledVector(dir, d);
+        const cell: [number, number, number] = [Math.floor(p.x), Math.floor(p.y), Math.floor(p.z)];
+        const t = worldRef.current.get(cell[0], cell[1], cell[2]);
+        if (t && t !== 'water') {
+          if (last) placeRef.current?.(last[0], last[1], last[2]);
+          return;
+        }
+        last = cell;
+      }
+    };
+    placeActionRef.current = place;
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button !== 2 || !document.pointerLockElement) return;
+      e.preventDefault();
+      if (useItemRef.current) useItemRef.current();
+      else place();
+    };
+    const noMenu = (e: Event) => { if (document.pointerLockElement) e.preventDefault(); };
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('contextmenu', noMenu);
     const onClick = () => {
       if (document.pointerLockElement) attack();
     };
     document.addEventListener('click', onClick);
-    return () => document.removeEventListener('click', onClick);
+    return () => {
+      document.removeEventListener('click', onClick);
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('contextmenu', noMenu);
+    };
   }, [camera, onBlockBreak, onMobHit]);
 
   useFrame((_, delta) => {
@@ -290,6 +331,7 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
       touchInput.lookDX = 0;
       touchInput.lookDY = 0;
       touchInput.attacks = 0;
+      touchInput.places = 0;
     }
 
     // Celular: arrastar o dedo gira a câmera
@@ -305,6 +347,11 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
     while (touchInput.attacks > 0) {
       touchInput.attacks--;
       attackRef.current();
+    }
+    while (touchInput.places > 0) {
+      touchInput.places--;
+      if (useItemRef.current) useItemRef.current();
+      else placeActionRef.current();
     }
 
     const forwardDir = new THREE.Vector3();

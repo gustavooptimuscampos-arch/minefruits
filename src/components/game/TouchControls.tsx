@@ -15,7 +15,7 @@ const ATTACK_REPEAT_MS = 350;
 export function TouchControls({ onExit, onPower }: { onExit?: () => void; onPower?: () => void }) {
   useEffect(() => () => {
     // Ao sair do jogo, solta tudo
-    Object.assign(touchInput, { moveX: 0, moveY: 0, lookDX: 0, lookDY: 0, jump: false, sprint: false, attacks: 0 });
+    Object.assign(touchInput, { moveX: 0, moveY: 0, lookDX: 0, lookDY: 0, jump: false, sprint: false, attacks: 0, places: 0 });
   }, []);
 
   return (
@@ -141,6 +141,15 @@ function ActionButtons({ onPower }: { onPower?: () => void }) {
         onContextMenu={(e) => e.preventDefault()}
       >
         ⬆️
+      </button>
+      {/* Colocar o bloco da mão (ou comer, se for comida) */}
+      <button
+        aria-label="Colocar bloco"
+        className={`${round} absolute top-2 left-2 w-14 h-14 text-2xl bg-amber-700/60 border-amber-200/70`}
+        onPointerDown={(e) => { e.preventDefault(); touchInput.places++; }}
+        onContextMenu={(e) => e.preventDefault()}
+      >
+        🧱
       </button>
       {/* Poder da fruta */}
       {onPower && (

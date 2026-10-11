@@ -17,6 +17,8 @@ export const touchInput = {
   sprint: false,
   /** Pedidos de ataque ainda não processados. */
   attacks: 0,
+  /** Pedidos de colocar bloco / usar item ainda não processados. */
+  places: 0,
 };
 
 /** Simula uma tecla do teclado, para reaproveitar os atalhos do jogo (E, B, R, V, T). */

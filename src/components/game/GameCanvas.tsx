@@ -12,7 +12,7 @@ import { RemotePlayersRenderer } from './RemotePlayersRenderer';
 import { GameHUD } from './GameHUD';
 import { CraftingUI } from './CraftingUI';
 import { GameChat, ChatMessage } from './GameChat';
-import { FruitType, FOOD_VALUES, ItemType, MINING_REQUIREMENTS, BLOCK_DROPS, UNBREAKABLE, TOOL_DAMAGE, ITEM_CONFIG, AccessoryType, SHOP_ITEMS, FRUIT_CONFIG, Fruit, GameCoin } from './types';
+import { FruitType, FOOD_VALUES, ItemType, PLACEABLE, MINING_REQUIREMENTS, BLOCK_DROPS, UNBREAKABLE, TOOL_DAMAGE, ITEM_CONFIG, AccessoryType, SHOP_ITEMS, FRUIT_CONFIG, Fruit, GameCoin } from './types';
 import { MobData, MOB_CONFIG, spawnMobs, spawnGuardians, ANIMAL_FOOD } from './mobs';
 import { SkinData } from './skins';
 import { useMultiplayer } from './useMultiplayer';
@@ -304,6 +304,27 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
   }, [world, equippedItem, collectBlock, showNotice]);
 
   const lockNoticeAt = useRef(0);
+  /** Coloca o bloco que está na mão (botão direito / 🧱 no celular). */
+  const handleBlockPlace = useCallback((x: number, y: number, z: number) => {
+    const item = equippedItem;
+    const block = item ? PLACEABLE[item] : undefined;
+    if (!item || !block) {
+      showNotice('🧱 Segure um bloco na mão (números 1-9) para colocar');
+      return;
+    }
+    const current = world.get(x, y, z);
+    if (!world.inBounds(x, y, z) || (current && current !== 'water')) return;
+    // Não deixa colocar bloco dentro do próprio jogador
+    const feet = playerPosition.y - 1.7;
+    const insideX = x + 1 > playerPosition.x - 0.3 && x < playerPosition.x + 0.3;
+    const insideZ = z + 1 > playerPosition.z - 0.3 && z < playerPosition.z + 0.3;
+    const insideY = y + 1 > feet && y < feet + 1.8;
+    if (insideX && insideZ && insideY) return;
+    if (!removeItem(item, 1)) return;
+    world.set(x, y, z, block);
+    setWorldVersion(v => v + 1);
+  }, [equippedItem, world, removeItem, showNotice]);
+
   const handleFruitCollect = useCallback((id: string) => {
     const fruit = fruitsRef.current.find(f => f.id === id);
     if (!fruit || fruit.collected) return;
@@ -563,7 +584,9 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
         <MobsRenderer mobs={mobs} world={world} onPlayerDamage={handlePlayerDamage} />
         <Player
           world={world} fruits={fruits} mobs={mobs} coins={coins} skin={effectiveSkin}
-          onBlockBreak={handleBlockBreak} onFruitCollect={handleFruitCollect} onCoinCollect={handleCoinCollect}
+          onBlockBreak={handleBlockBreak} onBlockPlace={handleBlockPlace}
+          onUseItem={equippedItem && FOOD_VALUES[equippedItem] ? () => eat(equippedItem) : undefined}
+          onFruitCollect={handleFruitCollect} onCoinCollect={handleCoinCollect}
           onMobHit={handlePlayerAttack} sendPosition={isMultiplayer ? mp.sendPosition : undefined}
           playerHealth={playerHealth} equippedItem={equippedItem}
           controlsEnabled={!anyOverlay} respawnKey={respawnKey} aura={auraData}

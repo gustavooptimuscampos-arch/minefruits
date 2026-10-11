@@ -138,11 +138,16 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
             const config = item ? ITEM_CONFIG[item] : null;
             return (
               <button key={i} onClick={() => inventory.setSelectedSlot(i)}
-                className={`w-10 h-10 rounded flex items-center justify-center text-lg transition-all ${
+                className={`relative w-10 h-10 rounded flex items-center justify-center text-lg transition-all ${
                   isSelected ? 'bg-primary/30 border-2 border-primary scale-110' : 'bg-muted/30 border border-border/30 hover:bg-muted/50'
                 }`}
               >
                 {config ? <span title={config.label}>{config.emoji}</span> : <span className="text-xs text-muted-foreground/30">{i + 1}</span>}
+                {item && (inventory.items.find(it => it.type === item)?.count ?? 0) > 1 && (
+                  <span className="absolute bottom-0 right-0.5 text-[10px] font-pixel text-foreground drop-shadow">
+                    {inventory.items.find(it => it.type === item)?.count}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -150,7 +155,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
         <div className="text-center mt-1 hide-on-touch">
           <span className="text-[10px] font-game text-muted-foreground">
             {inventory.equippedItem ? ITEM_CONFIG[inventory.equippedItem].label : 'Mão vazia'}
-            {' • '}F poder • Q troca • G comer • E craftar • B loja • R ranking • V câmera • T chat
+            {' • '}Botão direito coloca • F poder • Q troca • G comer • E craftar • B loja • R ranking • V câmera • T chat
           </span>
         </div>
       </div>
