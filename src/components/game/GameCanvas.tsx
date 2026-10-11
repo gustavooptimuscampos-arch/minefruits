@@ -81,7 +81,8 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
   // Poderes ganhos ficam para sempre (salvos); "power" é o que está em uso agora
   const [powers, setPowers] = useState<FruitType[]>(() => loadPowers(playerId, savedPowers));
   const [power, setPower] = useState<FruitType | null>(() => powers[powers.length - 1] ?? null);
-  const [powerReadyAt, setPowerReadyAt] = useState(0);
+  // Cada poder tem a sua recarga (antes era uma só: depois do Gelo a Luz ficava 8 s sem funcionar)
+  const [powerReadyMap, setPowerReadyMap] = useState<Record<string, number>>({});
   const [now, setNow] = useState(() => performance.now());
 
   const inventory = useInventory();
@@ -353,7 +354,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
     // Comer a fruta dá o poder dela para sempre (os anteriores continuam; Q troca)
     setPowers(prev => (prev.includes(fruit.type) ? prev : [...prev, fruit.type]));
     setPower(fruit.type);
-    setPowerReadyAt(0);
+    setPowerReadyMap(prev => ({ ...prev, [fruit.type]: 0 }));
     showNotice(`${FRUIT_POWERS[fruit.type].emoji} Poder ${FRUIT_POWERS[fruit.type].name} é seu para sempre! Aperte F`);
   }, [showNotice]);
 
@@ -430,25 +431,34 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
   const foodCount = inventoryItems.reduce((n, i) => n + (FOOD_VALUES[i.type] ? i.count : 0), 0);
 
   /** Usa o poder da fruta (tecla F ou botão ✨ no celular). */
+  const powerReadyAt = power ? (powerReadyMap[power] ?? 0) : 0;
   const usePower = useCallback(() => {
     if (!power) { showNotice('🍎 Pegue uma fruta para ganhar um poder'); return; }
     const t = performance.now();
-    if (t < powerReadyAt) return;
+    if (t < powerReadyAt) {
+      showNotice(`⏳ ${FRUIT_POWERS[power].name} recarregando: ${Math.ceil((powerReadyAt - t) / 1000)} s`);
+      return;
+    }
     const info = FRUIT_POWERS[power];
-    setPowerReadyAt(t + info.cooldown * 1000);
+    setPowerReadyMap(prev => ({ ...prev, [power]: t + info.cooldown * 1000 }));
 
     const me = playerPosition.clone();
     const look = playerLook.clone();
     const flat = new THREE.Vector3(look.x, 0, look.z).normalize();
-    const hostiles = mobsRef.current.filter(m => !m.dead && m.hostile);
-    const near = (r: number) => hostiles.filter(m => { const p = mobRegistry.get(m.id)?.pos; return !!p && p.distanceTo(me) <= r; });
+    // Os poderes acertam monstros, Guardiões e animais (antes só monstros: de dia parecia que não faziam nada)
+    const targets = mobsRef.current.filter(m => !m.dead && m.type !== 'villager');
+    const centerOf = (id: string) => {
+      const r = mobRegistry.get(id);
+      return r ? r.pos.clone().setY(r.pos.y + r.centerY) : null;
+    };
+    const near = (r: number) => targets.filter(m => { const p = centerOf(m.id); return !!p && p.distanceTo(me) <= r + 1; });
 
     if (power === 'flame') {
       // Bola de fogo: queima tudo num cone à frente
       const center = me.clone().addScaledVector(flat, 3.5);
       addPowerEffect('flame', center, 3.5);
       for (const m of near(8)) {
-        const p = mobRegistry.get(m.id)!.pos;
+        const p = centerOf(m.id)!;
         const to = new THREE.Vector3(p.x - me.x, 0, p.z - me.z).normalize();
         if (to.dot(flat) > 0.45) handleMobHit(m.id, info.damage);
       }
@@ -473,8 +483,9 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
     } else if (power === 'rubber') {
       // Soco de borracha: estica e acerta o primeiro monstro na mira
       const target = near(14)
-        .map(m => ({ m, p: mobRegistry.get(m.id)!.pos }))
-        .filter(({ p }) => p.clone().sub(me).normalize().dot(look) > 0.85)
+        .map(m => ({ m, p: centerOf(m.id)! }))
+        // Mira só na horizontal: olhar um pouco para cima/baixo não faz errar o soco
+        .filter(({ p }) => new THREE.Vector3(p.x - me.x, 0, p.z - me.z).normalize().dot(flat) > 0.75)
         .sort((a, b) => a.p.distanceTo(me) - b.p.distanceTo(me))[0];
       addPowerEffect('rubber', target ? target.p : me.clone().addScaledVector(look, 6), 1.6);
       if (target) handleMobHit(target.m.id, info.damage);
@@ -606,7 +617,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
         inventory={inventory} voxelCoins={voxelCoins} locked={locked || anyOverlay}
         totalFruits={fruits.length}
         biome={`${BIOMES[biome].emoji} ${BIOMES[biome].name}`}
-        powers={powers.map(t => ({ type: t, emoji: FRUIT_POWERS[t].emoji, name: FRUIT_POWERS[t].name }))}
+        powers={powers.map(t => ({ type: t, emoji: FRUIT_POWERS[t].emoji, name: FRUIT_POWERS[t].name, description: FRUIT_POWERS[t].description, cooldown: FRUIT_POWERS[t].cooldown }))}
         onSelectPower={(t: FruitType) => setPower(t)}
         power={power ? { emoji: FRUIT_POWERS[power].emoji, name: FRUIT_POWERS[power].name, cooldown: FRUIT_POWERS[power].cooldown, remaining: Math.max(0, (powerReadyAt - now) / 1000) } : null}
         guardiansLeft={mobs.filter(m => m.type === 'guardian' && !m.dead).length}

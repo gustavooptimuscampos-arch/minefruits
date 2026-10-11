@@ -413,9 +413,17 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
       const steps = Math.ceil(d.length() / 0.25);
       const stepX = d.x / steps, stepZ = d.z / steps;
       for (let i = 0; i < steps; i++) {
-        if (bodyBlocked(currentWorld, pos.x + stepX, feet, pos.z + stepZ)) break;
-        pos.x += stepX; pos.z += stepZ;
+        const nx = pos.x + stepX, nz = pos.z + stepZ;
+        // Sobe degraus de até 2 blocos (antes parava no primeiro morrinho e não saía do lugar)
+        let up = -1;
+        for (let k = 0; k <= 2; k++) {
+          const f = k === 0 ? feet : Math.floor(feet + 0.01) + k;
+          if (!bodyBlocked(currentWorld, nx, f, nz) && (k === 0 || !bodyBlocked(currentWorld, pos.x, f, pos.z))) { up = k; feet = f; break; }
+        }
+        if (up < 0) break;
+        pos.x = nx; pos.z = nz;
       }
+      velocity.current.y = Math.max(0, velocity.current.y);
     }
     if (!tryMove(pos.x + horizVel.current.x * dt, pos.z)) horizVel.current.x = 0;
     if (!tryMove(pos.x, pos.z + horizVel.current.z * dt)) horizVel.current.z = 0;

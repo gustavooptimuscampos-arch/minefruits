@@ -3,7 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { powerEffects, PowerEffect } from './playerState';
 
-const DURATION = 650; // ms
+const DURATION = 900; // ms
 const COLORS: Record<PowerEffect['kind'], string> = {
   flame: '#ff5a1f',
   ice: '#7fe3ff',
@@ -19,7 +19,7 @@ function Burst({ effect }: { effect: PowerEffect }) {
   useFrame(() => {
     const k = Math.min(1, (performance.now() - effect.start) / DURATION);
     if (ref.current) ref.current.scale.setScalar(0.3 + k * effect.radius);
-    if (mat.current) mat.current.opacity = 0.55 * (1 - k);
+    if (mat.current) mat.current.opacity = 0.7 * (1 - k);
   });
   return (
     <mesh ref={ref} position={effect.pos}>

@@ -1,4 +1,4 @@
-import { FRUIT_CONFIG, FruitType, ITEM_CONFIG, ItemType, Item } from './types';
+import { FruitType, ITEM_CONFIG, ItemType, Item } from './types';
 
 interface GameHUDProps {
   score: number;
@@ -29,7 +29,7 @@ interface GameHUDProps {
   /** Poder da fruta atual e quanto falta para usar de novo. */
   power?: { emoji: string; name: string; cooldown: number; remaining: number } | null;
   /** Todos os poderes que o jogador já ganhou (para sempre). */
-  powers?: { type: FruitType; emoji: string; name: string }[];
+  powers?: { type: FruitType; emoji: string; name: string; description?: string; cooldown?: number }[];
   onSelectPower?: (type: FruitType) => void;
   /** Quantos Guardiões ainda protegem frutas. */
   guardiansLeft?: number;
@@ -226,20 +226,32 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
         </div>
       )}
 
-      {/* Collected fruits */}
-      {collectedFruits.length > 0 && (
-        <div className="absolute bottom-28 right-4 flex flex-col gap-1.5 items-end hud-fruits hide-on-touch">
-          {collectedFruits.map((type, i) => {
-            const config = FRUIT_CONFIG[type];
-            return (
-              <div key={i} className="flex items-center gap-2 bg-background/60 backdrop-blur-sm rounded-full px-3 py-1 border border-border/50">
-                <span className="text-xs font-game text-muted-foreground">{config.power}</span>
-                <div className="w-4 h-4 rounded-full" style={{ backgroundColor: config.color, boxShadow: `0 0 8px ${config.color}` }} />
-              </div>
-            );
-          })}
+      {/* Canto da tela: o que cada poder de fruta faz */}
+      <div className="absolute top-32 right-4 w-60 hud-powers-panel hide-on-touch">
+        <div className="bg-background/60 backdrop-blur-sm rounded-lg px-3 py-2 border border-purple-400/40 space-y-1.5">
+          <div className="text-xs font-pixel text-purple-300">✨ PODERES</div>
+          {powers.length === 0 ? (
+            <div className="text-[11px] font-game text-muted-foreground leading-snug">
+              Derrote um 🛡️ Guardião e pegue a fruta dele para ganhar um poder para sempre.
+              <div className="mt-1 text-[10px]">🔥 deserto • ❄️ taiga • 🩷 selva • ⚡ montanha • 🌑 ravina (escada)</div>
+            </div>
+          ) : (
+            powers.map(p => {
+              const active = power?.name === p.name;
+              return (
+                <div key={p.type} className={`text-[11px] font-game leading-snug ${active ? 'text-foreground' : 'text-muted-foreground'}`}>
+                  <span className="mr-1">{p.emoji}</span>
+                  <span className={active ? 'text-purple-200 font-bold' : ''}>{p.name}</span>
+                  {active && <span className="ml-1 text-[9px] font-pixel text-purple-300">F</span>}
+                  {p.cooldown !== undefined && <span className="ml-1 text-[10px] opacity-70">({p.cooldown}s)</span>}
+                  <div className="text-[10px] opacity-90">{p.description}</div>
+                </div>
+              );
+            })
+          )}
+          {powers.length > 1 && <div className="text-[10px] font-game text-muted-foreground">Q troca o poder em uso</div>}
         </div>
-      )}
+      </div>
 
       {/* Pointer lock prompt */}
       <PointerLockPrompt locked={locked} />
