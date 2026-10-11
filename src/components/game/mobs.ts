@@ -90,24 +90,39 @@ export function spawnMobs(world: World, isNight: boolean): MobData[] {
 }
 
 /** Um Guardião (mini-chefe) para cada fruta. Ele não deixa pegar a fruta enquanto estiver vivo. */
-export function spawnGuardians(fruits: { id: string; position: [number, number, number] }[]): MobData[] {
+export function spawnGuardians(fruits: { id: string; position: [number, number, number] }[], world?: World): MobData[] {
   const config = MOB_CONFIG.guardian;
   return fruits.map((f, i) => {
-    const angle = i * 2.1;
-    const x = f.position[0] + Math.cos(angle) * 2.5;
-    const z = f.position[2] + Math.sin(angle) * 2.5;
-    const y = f.position[1] - 1.5;
+    const fx = Math.floor(f.position[0]), fz = Math.floor(f.position[2]);
+    const floorY = Math.round(f.position[1] - 1.5);
+    // Procura um lugar livre perto da fruta (antes o Guardião podia nascer dentro de pedra ou de uma árvore)
+    // Se não achar lugar livre em volta, fica do lado da própria fruta (que sempre está num espaço livre)
+    let spot: [number, number, number] = world ? [f.position[0] + 0.3, floorY, f.position[2] + 0.3] : [f.position[0] + Math.cos(i * 2.1) * 2.5, floorY, f.position[2] + Math.sin(i * 2.1) * 2.5];
+    if (world) {
+      search: for (let r = 1; r <= 4; r++) {
+        for (let k = 0; k < 8; k++) {
+          const a = i * 2.1 + (k * Math.PI) / 4;
+          const x = Math.floor(fx + Math.cos(a) * r), z = Math.floor(fz + Math.sin(a) * r);
+          for (let y = floorY + 1; y >= floorY - 1; y--) {
+            if (world.isSolid(x, y - 1, z) && !world.get(x, y, z) && !world.get(x, y + 1, z)) {
+              spot = [x + 0.5, y, z + 0.5];
+              break search;
+            }
+          }
+        }
+      }
+    }
     return {
       id: `guardian-${f.id}`,
       type: 'guardian' as MobType,
-      position: [x, y + config.bodyScale[1] / 2, z] as [number, number, number],
+      position: [spot[0], spot[1] + config.bodyScale[1] / 2, spot[2]] as [number, number, number],
       health: config.health,
       maxHealth: config.health,
       hostile: true,
       speed: config.speed,
       dead: false,
       guardsFruit: f.id,
-      home: [f.position[0], y, f.position[2]] as [number, number, number],
+      home: [f.position[0], floorY, f.position[2]] as [number, number, number],
     };
   });
 }

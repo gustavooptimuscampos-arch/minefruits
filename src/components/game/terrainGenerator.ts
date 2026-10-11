@@ -343,6 +343,37 @@ function landSpots(world: World, rand: () => number, count: number, minDist: num
   return spots;
 }
 
+/**
+ * Escada da superfície até a ravina da fruta das Trevas: degraus de 1 bloco
+ * (dá para subir e descer andando), com tochas nas paredes para iluminar.
+ */
+function carveStairs(world: World, x0: number, y0: number, z0: number) {
+  // Vai para o lado com mais terra (longe da borda da ilha)
+  const dirs: [number, number][] = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const [dx, dz] = dirs.sort((a, b) => (Math.abs(x0 + a[0] * 30) + Math.abs(z0 + a[1] * 30)) - (Math.abs(x0 + b[0] * 30) + Math.abs(z0 + b[1] * 30)))[0];
+  const sx = dz, sz = dx; // lado (largura 2)
+  for (let i = 1; i < 60; i++) {
+    const x = x0 + dx * (i + 1), z = z0 + dz * (i + 1), y = y0 + i;
+    if (Math.abs(x) >= WORLD_HALF - 2 || Math.abs(z) >= WORLD_HALF - 2) break;
+    for (let w = 0; w <= 1; w++) {
+      const cx = x + sx * w, cz = z + sz * w;
+      // Chão do degrau: não pode ser bedrock nem buraco
+      if (!world.isSolid(cx, y - 1, cz)) world.set(cx, y - 1, cz, 'cobblestone');
+      for (let h = 0; h <= 2; h++) {
+        const t = world.get(cx, y + h, cz);
+        if (t && t !== 'bedrock') world.set(cx, y + h, cz, null);
+      }
+    }
+    // Tocha na parede a cada 5 degraus
+    if (i % 5 === 0) {
+      const wx = x - sx, wz = z - sz;
+      if (world.isSolid(wx, y + 1, wz)) world.set(wx, y + 1, wz, 'torch');
+    }
+    // Chegou na superfície
+    if (y >= world.groundHeight(x, z)) break;
+  }
+}
+
 /** Onde fica cada fruta especial: no bioma que combina com ela. */
 const FRUIT_HOMES: [FruitType, BiomeId][] = [['flame', 'desert'], ['ice', 'taiga'], ['rubber', 'jungle'], ['light', 'mountains']];
 
@@ -390,7 +421,15 @@ export function generateFruits(world: World, seed = 1, layout?: BiomeLayout): Fr
     }
   }
   const ravine = world.ravineSpots.find(([x, y, z]) => world.groundHeight(x, z) - y > 12);
-  if (ravine) placed.push({ type: 'dark', position: [ravine[0] + 0.5, ravine[1] + 1.5, ravine[2] + 0.5] });
+  if (ravine) {
+    // Garante espaço vazio em volta da fruta e uma escada até a superfície
+    // (antes ela ficava escondida a 30 blocos e quase ninguém achava)
+    for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) for (let dy = 0; dy <= 2; dy++) {
+      world.set(ravine[0] + dx, ravine[1] + dy, ravine[2] + dz, null);
+    }
+    carveStairs(world, ravine[0], ravine[1], ravine[2]);
+    placed.push({ type: 'dark', position: [ravine[0] + 0.5, ravine[1] + 1.5, ravine[2] + 0.5] });
+  }
 
   // Completa até 8 frutas em lugares aleatórios
   const extra = landSpots(world, rand, 8, 14).filter(([x, z]) => placed.every(p => Math.hypot(p.position[0] - x, p.position[2] - z) > 14));

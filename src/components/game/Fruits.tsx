@@ -50,6 +50,11 @@ function FruitMesh({ fruit, locked }: { fruit: Fruit; locked: boolean }) {
         <sphereGeometry args={[0.6, 12, 12]} />
         <meshBasicMaterial color={config.color} transparent opacity={0.22} depthWrite={false} blending={THREE.AdditiveBlending} />
       </mesh>
+      {/* Raio de luz até o céu: mostra de longe onde está a fruta (até a que fica no subsolo) */}
+      <mesh position={[fruit.position[0], baseY + 30, fruit.position[2]]}>
+        <cylinderGeometry args={[0.12, 0.35, 60, 8, 1, true]} />
+        <meshBasicMaterial color={config.color} transparent opacity={0.35} depthWrite={false} blending={THREE.AdditiveBlending} side={THREE.DoubleSide} />
+      </mesh>
       {/* Escudo do Guardião: some quando ele é derrotado */}
       {locked && (
         <mesh ref={shieldRef} position={[fruit.position[0], baseY, fruit.position[2]]}>

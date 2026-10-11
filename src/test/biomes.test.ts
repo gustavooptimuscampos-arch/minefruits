@@ -104,8 +104,15 @@ describe('mapa com biomas', () => {
     expect(fruits.some(f => f.type === 'light' && biomeAt(f.position[0], f.position[2], layout) === 'mountains')).toBe(true);
     // A fruta da caverna fica num espaço vazio (dá para chegar)
     expect(world.get(Math.floor(dark!.position[0]), Math.floor(dark!.position[1]), Math.floor(dark!.position[2]))).toBeUndefined();
-    const guardians = spawnGuardians(fruits);
+    const guardians = spawnGuardians(fruits, world);
     expect(guardians).toHaveLength(fruits.length);
+    // Nenhum Guardião nasce dentro de bloco (senão a fruta ficava presa para sempre)
+    for (const g of guardians) {
+      const feet = g.position[1] - 0.8;
+      expect(world.isSolid(Math.floor(g.position[0]), Math.floor(feet + 0.01), Math.floor(g.position[2])), g.id).toBe(false);
+    }
+    // A fruta das Trevas tem uma escada até a superfície: dá para chegar andando
+    expect(fruits.length).toBe(8);
     expect(new Set(guardians.map(g => g.guardsFruit))).toEqual(new Set(fruits.map(f => f.id)));
   });
 
@@ -113,6 +120,49 @@ describe('mapa com biomas', () => {
     for (const info of Object.values(BIOMES)) {
       expect(info.name.length).toBeGreaterThan(2);
       expect(info.emoji.length).toBeGreaterThan(0);
+    }
+  });
+});
+
+/** Caminhada de verdade, sem cavar: anda para o lado, sobe 1 bloco, desce qualquer altura. */
+function walkable(w: ReturnType<typeof generateTerrain>, from: [number, number, number]) {
+  const key = (x: number, y: number, z: number) => `${x},${y},${z}`;
+  const stand = (x: number, y: number, z: number) => w.isSolid(x, y - 1, z) && !w.isSolid(x, y, z) && !w.isSolid(x, y + 1, z);
+  const seen = new Set<string>([key(...from)]);
+  const q: [number, number, number][] = [from];
+  while (q.length) {
+    const [x, y, z] = q.pop()!;
+    for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+      const nx = x + dx, nz = z + dz;
+      if (Math.abs(nx) >= WORLD_HALF || Math.abs(nz) >= WORLD_HALF) continue;
+      for (let ny = y + 1; ny >= Math.max(1, y - 20); ny--) {
+        if (ny === y + 1 && w.isSolid(x, y + 2, z)) continue;
+        if (stand(nx, ny, nz)) {
+          const k = key(nx, ny, nz);
+          if (!seen.has(k)) { seen.add(k); q.push([nx, ny, nz]); }
+          break;
+        }
+        if ((w.isSolid(nx, ny, nz) || w.isSolid(nx, ny + 1, nz)) && ny < y + 1) break;
+      }
+    }
+  }
+  return seen;
+}
+
+describe('todas as frutas dá para pegar', () => {
+  it.each([1, 42, 2026])('semente %s: as 8 frutas são alcançáveis andando (a das Trevas pela escada)', (seed) => {
+    const layout = buildBiomeLayout(seed);
+    const world = generateTerrain(layout);
+    const fruits = generateFruits(world, seed, layout);
+    expect(fruits).toHaveLength(8);
+    const seen = walkable(world, [0, world.groundHeight(0, 0), 0]);
+    for (const f of fruits) {
+      const x = Math.floor(f.position[0]), y = Math.round(f.position[1] - 1.5), z = Math.floor(f.position[2]);
+      let ok = false;
+      for (let dx = -1; dx <= 1; dx++) for (let dz = -1; dz <= 1; dz++) for (let dy = -2; dy <= 1; dy++) {
+        if (seen.has(`${x + dx},${y + dy},${z + dz}`)) ok = true;
+      }
+      expect(ok, `${f.type} em ${x},${y},${z}`).toBe(true);
     }
   });
 });

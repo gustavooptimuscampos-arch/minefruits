@@ -196,7 +196,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
 
   useEffect(() => {
     if (!spawnedRef.current) {
-      applyMobs([...spawnGuardians(initialFruits), ...spawnMobs(world, false)]);
+      applyMobs([...spawnGuardians(initialFruits, world), ...spawnMobs(world, false)]);
       spawnedRef.current = true;
     }
   }, [world, applyMobs, initialFruits]);
