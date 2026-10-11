@@ -319,7 +319,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
     const insideX = x + 1 > playerPosition.x - 0.3 && x < playerPosition.x + 0.3;
     const insideZ = z + 1 > playerPosition.z - 0.3 && z < playerPosition.z + 0.3;
     const insideY = y + 1 > feet && y < feet + 1.8;
-    if (insideX && insideZ && insideY) return;
+    if (insideX && insideZ && insideY) { showNotice('🧱 Muito perto: mire um pouco mais à frente'); return; }
     if (!removeItem(item, 1)) return;
     world.set(x, y, z, block);
     setWorldVersion(v => v + 1);

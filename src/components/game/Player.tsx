@@ -310,7 +310,11 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
     const noMenu = (e: Event) => { if (document.pointerLockElement) e.preventDefault(); };
     document.addEventListener('mousedown', onMouseDown);
     document.addEventListener('contextmenu', noMenu);
-    const onClick = () => {
+    // Só o botão esquerdo ataca/quebra. Com o mouse travado, o navegador também manda
+    // "click" para o botão direito: antes isso quebrava o bloco que acabou de ser
+    // colocado e ele voltava para o inventário.
+    const onClick = (e: MouseEvent) => {
+      if (e.button !== 0) return;
       if (document.pointerLockElement) attack();
     };
     document.addEventListener('click', onClick);
