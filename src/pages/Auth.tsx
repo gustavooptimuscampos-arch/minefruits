@@ -1,20 +1,13 @@
 import { useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import gameBg from '@/assets/game-bg.jpg';
+import { hasBlockedWord } from '@/lib/nameFilter';
 
 const COUNTRIES = [
   'Brasil', 'Portugal', 'Estados Unidos', 'Argentina', 'México',
   'Colômbia', 'Chile', 'Peru', 'Uruguai', 'Paraguai',
   'Angola', 'Moçambique', 'Espanha', 'França', 'Alemanha',
   'Japão', 'Coreia do Sul', 'Outro',
-];
-
-const BLOCKED_WORDS = [
-  'porra', 'caralho', 'puta', 'merda', 'fdp', 'viado', 'buceta',
-  'cu', 'foda', 'cuzao', 'arrombado', 'desgraça', 'vagabundo',
-  'idiota', 'imbecil', 'otario', 'babaca', 'bosta', 'piranha',
-  'fuck', 'shit', 'bitch', 'ass', 'dick', 'bastard', 'damn',
-  'admin', 'moderador', 'mod', 'staff', 'suporte', 'system',
 ];
 
 const SUSPICIOUS_PATTERNS = [
@@ -33,16 +26,8 @@ function validateName(name: string): string | null {
   if (trimmed.length < 3) return 'Nome deve ter pelo menos 3 caracteres';
   if (trimmed.length > 20) return 'Nome deve ter no máximo 20 caracteres';
 
-  // Compara palavras inteiras: com includes(), nomes como "Marcus" (cu) e "Cassio" (ass) eram bloqueados
-  const words = trimmed.normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter(Boolean);
-  const joined = words.join('');
-  for (const word of BLOCKED_WORDS) {
-    const plain = word.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-    const hit = plain.length <= 4 ? words.includes(plain) : words.includes(plain) || joined.includes(plain);
-    if (hit) {
-      return '⚠️ Nome contém palavras ofensivas ou proibidas';
-    }
-  }
+  // Compara palavras inteiras: nomes como "Marcus" (cu) e "Cassio" (ass) não são bloqueados
+  if (hasBlockedWord(trimmed)) return '⚠️ Nome contém palavras ofensivas ou proibidas';
 
   for (const pattern of SUSPICIOUS_PATTERNS) {
     if (pattern.test(trimmed)) {

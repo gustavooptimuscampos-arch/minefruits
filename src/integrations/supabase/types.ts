@@ -14,6 +14,30 @@ export type Database = {
   }
   public: {
     Tables: {
+      friendships: {
+        Row: {
+          addressee: string
+          created_at: string
+          id: string
+          requester: string
+          status: string
+        }
+        Insert: {
+          addressee: string
+          created_at?: string
+          id?: string
+          requester: string
+          status?: string
+        }
+        Update: {
+          addressee?: string
+          created_at?: string
+          id?: string
+          requester?: string
+          status?: string
+        }
+        Relationships: []
+      }
       game_rooms: {
         Row: {
           code: string
@@ -41,6 +65,27 @@ export type Database = {
           id?: string
           max_players?: number
           status?: string
+        }
+        Relationships: []
+      }
+      player_nicks: {
+        Row: {
+          created_at: string
+          nick: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          nick: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          nick?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }

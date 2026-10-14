@@ -9,6 +9,9 @@ import { SkinData, SKINS } from '@/components/game/skins';
 import Auth from './Auth';
 import { InstallButton } from '@/components/InstallButton';
 import { isTouchDevice } from '@/components/game/touchInput';
+import { NickSetup } from '@/components/game/NickSetup';
+import { FriendsPanel } from '@/components/game/FriendsPanel';
+import { useSocial } from '@/hooks/useSocial';
 
 /** No celular, o jogo ocupa a tela toda e fica deitado. */
 function enterMobileFullscreen() {
@@ -21,7 +24,7 @@ function enterMobileFullscreen() {
   });
 }
 
-type Screen = 'start' | 'lobby' | 'game' | 'skin-creator';
+type Screen = 'start' | 'lobby' | 'game' | 'skin-creator' | 'nick';
 
 const Index = () => {
   const [session, setSession] = useState<Session | null>(null);
@@ -35,6 +38,7 @@ const Index = () => {
   const [guest, setGuest] = useState(false);
   // Ao voltar do criador de skin, reabre direto a escolha de skin (com a nova selecionada)
   const [openSkinPicker, setOpenSkinPicker] = useState(false);
+  const [friendsOpen, setFriendsOpen] = useState(false);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -53,6 +57,16 @@ const Index = () => {
     });
     return () => subscription.unsubscribe();
   }, []);
+
+  // Nick e amigos (só para quem tem conta)
+  const userId = session && !guest ? session.user.id : null;
+  const social = useSocial(
+    userId,
+    (session?.user?.user_metadata?.nick as string | undefined) ?? null,
+    screen === 'game' && !isSinglePlayer ? roomCode : null,
+  );
+  // Os outros jogadores veem o nick, nunca o nome real
+  const shownName = userId ? (social.nick ?? playerName) : playerName;
 
   if (loading) {
     return (
@@ -80,6 +94,24 @@ const Index = () => {
       </div>
     );
   }
+
+  // Conta sem nick ainda: escolhe um antes de jogar
+  if (userId && social.nickLoaded && !social.nick) {
+    return <NickSetup social={social} onDone={() => setScreen('start')} />;
+  }
+  if (screen === 'nick' && userId) {
+    return <NickSetup social={social} current={social.nick} onDone={() => { setScreen('start'); setFriendsOpen(true); }} onCancel={() => { setScreen('start'); setFriendsOpen(true); }} />;
+  }
+
+  const friendsPanel = friendsOpen && (
+    <FriendsPanel
+      social={userId ? social : null}
+      onCreateAccount={() => { setFriendsOpen(false); setGuest(false); }}
+      onChangeNick={() => { setFriendsOpen(false); setScreen('nick'); }}
+      onJoinRoom={code => { setFriendsOpen(false); handleJoinRoom(code, shownName); }}
+      onClose={() => setFriendsOpen(false)}
+    />
+  );
 
   const handleStart = (skin: SkinData, mode: 'single' | 'multi') => {
     setSelectedSkin(skin);
@@ -125,12 +157,19 @@ const Index = () => {
 
   if (screen === 'lobby') {
     return (
-      <Lobby
-        skin={selectedSkin}
-        defaultName={guest ? '' : playerName}
-        onJoinRoom={handleJoinRoom}
-        onBack={() => { setOpenSkinPicker(true); setScreen('start'); }}
-      />
+      <>
+        <Lobby
+          skin={selectedSkin}
+          defaultName={guest ? '' : shownName}
+          lockedName={!!userId && !!social.nick}
+          friendsInRooms={userId ? social.friends.filter(f => f.room) : []}
+          pendingRequests={userId ? social.incoming.length : 0}
+          onOpenFriends={() => setFriendsOpen(true)}
+          onJoinRoom={handleJoinRoom}
+          onBack={() => { setOpenSkinPicker(true); setScreen('start'); }}
+        />
+        {friendsPanel}
+      </>
     );
   }
 
@@ -141,7 +180,7 @@ const Index = () => {
         playerId={session?.user?.id ?? 'visitante'}
         savedPowers={session?.user?.user_metadata?.fruit_powers}
         loggedIn={!!session && !guest}
-        multiplayer={!isSinglePlayer ? { roomCode: roomCode!, playerName } : undefined}
+        multiplayer={!isSinglePlayer ? { roomCode: roomCode!, playerName: userId ? shownName : playerName } : undefined}
         onExit={handleExitGame}
       />
     );
@@ -153,15 +192,27 @@ const Index = () => {
       <div className="absolute top-4 left-4 z-50">
         <InstallButton />
       </div>
-      {/* Logout button */}
-      <div className="absolute top-4 right-4 z-50">
+      {/* Amigos + sair */}
+      <div className="absolute top-4 right-4 z-50 flex gap-2">
+        <button
+          onClick={() => setFriendsOpen(true)}
+          className="relative font-pixel text-[10px] px-3 py-1.5 bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity"
+        >
+          👥 Amigos
+          {userId && social.incoming.length > 0 && (
+            <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-red-500 text-white text-[10px] leading-[18px] text-center">
+              {social.incoming.length}
+            </span>
+          )}
+        </button>
         <button
           onClick={handleLogout}
           className="font-pixel text-[10px] px-3 py-1.5 bg-muted text-muted-foreground rounded hover:bg-muted/80 transition-colors"
         >
-          🚪 {guest ? 'Entrar / criar conta' : `Sair (${playerName})`}
+          🚪 {guest ? 'Entrar / criar conta' : `Sair (@${shownName})`}
         </button>
       </div>
+      {friendsPanel}
       <StartScreen
         onStart={handleStart}
         customSkins={customSkins}
