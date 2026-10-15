@@ -115,10 +115,17 @@ const Index = () => {
 
   // Conta sem nick ainda: escolhe um antes de jogar
   if (userId && social.nickLoaded && !social.nick) {
-    return <NickSetup social={social} onDone={() => setScreen('start')} />;
+    return (
+      <NickSetup
+        social={social}
+        email={session?.user?.email}
+        onLogout={() => { supabase.auth.signOut(); }}
+        onDone={() => setScreen('start')}
+      />
+    );
   }
   if (screen === 'nick' && userId) {
-    return <NickSetup social={social} current={social.nick} onDone={() => { setScreen('start'); setFriendsOpen(true); }} onCancel={() => { setScreen('start'); setFriendsOpen(true); }} />;
+    return <NickSetup social={social} current={social.nick} email={session?.user?.email} onDone={() => { setScreen('start'); setFriendsOpen(true); }} onCancel={() => { setScreen('start'); setFriendsOpen(true); }} />;
   }
 
   const friendsPanel = friendsOpen && (

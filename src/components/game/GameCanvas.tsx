@@ -457,9 +457,18 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
     }
     if (mob.type === 'guardian') {
       setVoxelCoins(c => c + 10);
-      showNotice('🛡️ Guardião derrotado! A fruta está livre');
+      // Derrotou o Guardião: a fruta dele é sua na hora e o poder fica PARA SEMPRE
+      // (não precisa achar a fruta depois, nem dá para confundir com uma fruta inicial)
+      const fruit = mob.guardsFruit ? fruitsRef.current.find(f => f.id === mob.guardsFruit && !f.collected) : undefined;
+      if (fruit) {
+        handleFruitCollect(fruit.id);
+        const info = FRUIT_POWERS[fruit.type];
+        showNotice(`🛡️ Guardião derrotado! ${info.emoji} ${info.name} é seu PARA SEMPRE · aperte F`);
+      } else {
+        showNotice('🛡️ Guardião derrotado!');
+      }
     }
-  }, [applyMobs, showNotice, addItem]);
+  }, [applyMobs, showNotice, addItem, handleFruitCollect]);
 
   /** Come uma comida do inventário (a que mais enche, ou a escolhida). */
   const eat = useCallback((chosen?: ItemType) => {

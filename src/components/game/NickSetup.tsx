@@ -9,10 +9,14 @@ interface NickSetupProps {
   current?: string | null;
   onDone: () => void;
   onCancel?: () => void;
+  /** E-mail da conta: aparece antes do nick, para o jogador conferir em qual conta entrou. */
+  email?: string | null;
+  /** "Não é você?": sai da conta para entrar com outra. */
+  onLogout?: () => void;
 }
 
 /** Escolha do nick: o nome que os outros jogadores veem (o nome real fica escondido). */
-export function NickSetup({ social, current, onDone, onCancel }: NickSetupProps) {
+export function NickSetup({ social, current, onDone, onCancel, email, onLogout }: NickSetupProps) {
   const [nick, setNick] = useState(current ?? '');
   const [status, setStatus] = useState<'idle' | 'checking' | 'free' | 'taken'>('idle');
   const [error, setError] = useState('');
@@ -48,6 +52,19 @@ export function NickSetup({ social, current, onDone, onCancel }: NickSetupProps)
       <div className="absolute inset-0 bg-gradient-to-t from-background via-background/70 to-background/80" />
 
       <div className="relative z-10 w-full max-w-md px-4">
+        {/* Identificação da conta (e-mail) antes de escolher o nick */}
+        {email && (
+          <div className="mb-5 rounded-lg bg-muted/60 border border-border px-4 py-3 text-center" data-testid="account-email">
+            <p className="font-game text-[11px] text-muted-foreground">Você entrou com o e-mail</p>
+            <p className="font-game text-sm text-foreground break-all">📧 {email}</p>
+            {onLogout && (
+              <button type="button" onClick={onLogout} className="mt-1 font-game text-[11px] text-primary underline">
+                Não é você? Entrar com outra conta
+              </button>
+            )}
+          </div>
+        )}
+
         <h1 className="font-pixel text-xl sm:text-2xl text-primary text-glow-green text-center mb-2">
           {current ? 'TROCAR NICK' : 'CRIE SEU NICK'}
         </h1>
