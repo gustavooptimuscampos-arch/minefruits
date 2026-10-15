@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import type { Friend, Social } from '@/hooks/useSocial';
 import { joinRoomByCode } from '@/lib/rooms';
+import { isTypingTarget } from './keyboard';
 
 interface FriendsPanelProps {
   social: Social | null;
@@ -20,7 +21,12 @@ export function FriendsPanel({ social, onCreateAccount, onChangeNick, onJoinRoom
   const [confirmRemove, setConfirmRemove] = useState<string | null>(null);
 
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // Digitando o nick: o 1º ESC só sai do campo; o 2º fecha o painel
+      if (isTypingTarget(e.target)) (e.target as HTMLElement).blur();
+      else onClose();
+    };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose]);

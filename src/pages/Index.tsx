@@ -12,6 +12,7 @@ import { isTouchDevice } from '@/components/game/touchInput';
 import { NickSetup } from '@/components/game/NickSetup';
 import { FriendsPanel } from '@/components/game/FriendsPanel';
 import { useSocial } from '@/hooks/useSocial';
+import { GameSave, loadCloudSave, loadLocalSave, newest, savedAgo } from '@/components/game/save';
 
 /** No celular, o jogo ocupa a tela toda e fica deitado. */
 function enterMobileFullscreen() {
@@ -39,6 +40,11 @@ const Index = () => {
   // Ao voltar do criador de skin, reabre direto a escolha de skin (com a nova selecionada)
   const [openSkinPicker, setOpenSkinPicker] = useState(false);
   const [friendsOpen, setFriendsOpen] = useState(false);
+  // Progresso salvo e escolha "Continuar / Mundo novo"
+  const [save, setSave] = useState<GameSave | null>(null);
+  const [continueWorld, setContinueWorld] = useState(false);
+  const [worldChoice, setWorldChoice] = useState<null | 'ask' | 'confirm-new'>(null);
+  const [gameKey, setGameKey] = useState(0);
 
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
@@ -65,6 +71,18 @@ const Index = () => {
     (session?.user?.user_metadata?.nick as string | undefined) ?? null,
     screen === 'game' && !isSinglePlayer ? roomCode : null,
   );
+  const playerId = session && !guest ? session.user.id : 'visitante';
+  // Carrega o progresso: o do aparelho na hora; com conta, também o da nuvem (fica o mais novo)
+  useEffect(() => {
+    if (screen === 'game') return; // durante a partida o jogo cuida do salvamento
+    const local = loadLocalSave(playerId);
+    setSave(local);
+    if (playerId === 'visitante') return;
+    let cancelled = false;
+    loadCloudSave(playerId).then(cloud => { if (!cancelled) setSave(newest(loadLocalSave(playerId), cloud)); });
+    return () => { cancelled = true; };
+  }, [playerId, screen]);
+
   // Os outros jogadores veem o nick, nunca o nome real
   const shownName = userId ? (social.nick ?? playerName) : playerName;
 
@@ -118,16 +136,29 @@ const Index = () => {
     enterMobileFullscreen();
     if (mode === 'multi') {
       setScreen('lobby');
+    } else if (newest(loadLocalSave(playerId), save)?.world) {
+      // Tem mundo salvo: pergunta se continua ou começa outro (relê o aparelho: pode ter mudado)
+      setSave(newest(loadLocalSave(playerId), save));
+      setWorldChoice('ask');
     } else {
-      setIsSinglePlayer(true);
-      setScreen('game');
+      startSolo(false);
     }
   };
+
+  function startSolo(cont: boolean) {
+    setWorldChoice(null);
+    setContinueWorld(cont);
+    setIsSinglePlayer(true);
+    setGameKey(k => k + 1);
+    enterMobileFullscreen();
+    setScreen('game');
+  }
 
   const handleJoinRoom = (code: string, name: string) => {
     setRoomCode(code);
     setPlayerName(name);
     setIsSinglePlayer(false);
+    setGameKey(k => k + 1);
     enterMobileFullscreen();
     setScreen('game');
   };
@@ -176,8 +207,11 @@ const Index = () => {
   if (screen === 'game') {
     return (
       <GameCanvas
+        key={gameKey}
+        save={save}
+        continueWorld={continueWorld}
         skin={selectedSkin}
-        playerId={session?.user?.id ?? 'visitante'}
+        playerId={playerId}
         savedPowers={session?.user?.user_metadata?.fruit_powers}
         loggedIn={!!session && !guest}
         multiplayer={!isSinglePlayer ? { roomCode: roomCode!, playerName: userId ? shownName : playerName } : undefined}
@@ -213,6 +247,43 @@ const Index = () => {
         </button>
       </div>
       {friendsPanel}
+      {worldChoice && save?.world && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-3" onClick={() => setWorldChoice(null)}>
+          <div role="dialog" aria-label="Mundo salvo" className="w-full max-w-sm rounded-xl bg-card border border-border p-5 text-center shadow-2xl" onClick={e => e.stopPropagation()}>
+            {worldChoice === 'ask' ? (
+              <>
+                <h2 className="font-pixel text-base text-primary mb-2">💾 MUNDO SALVO</h2>
+                <p className="font-game text-xs text-muted-foreground mb-4">
+                  Salvo {savedAgo(save.savedAt)} · {save.world.score} pontos · {save.world.collectedFruits.length} frutas · {save.world.inventory.items.reduce((n, i) => n + i.count, 0)} itens
+                </p>
+                <div className="flex flex-col gap-2">
+                  <button autoFocus onClick={() => startSolo(true)} className="font-pixel text-xs px-4 py-3 bg-primary text-primary-foreground rounded-lg box-glow-green hover:opacity-90">
+                    ▶ CONTINUAR
+                  </button>
+                  <button onClick={() => setWorldChoice('confirm-new')} className="font-pixel text-[10px] px-4 py-2.5 bg-muted text-foreground rounded-lg hover:bg-muted/80">
+                    🌍 Mundo novo
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <h2 className="font-pixel text-sm text-destructive mb-2">⚠️ COMEÇAR DO ZERO?</h2>
+                <p className="font-game text-xs text-muted-foreground mb-4">
+                  O mundo salvo, o inventário e as frutas pegas nele serão apagados. Suas moedas, itens da loja e poderes continuam.
+                </p>
+                <div className="flex flex-col gap-2">
+                  <button onClick={() => startSolo(false)} className="font-pixel text-[10px] px-4 py-3 bg-destructive text-destructive-foreground rounded-lg hover:opacity-90">
+                    Sim, mundo novo
+                  </button>
+                  <button autoFocus onClick={() => setWorldChoice('ask')} className="font-pixel text-[10px] px-4 py-2.5 bg-muted rounded-lg hover:bg-muted/80">
+                    ← Voltar
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
       <StartScreen
         onStart={handleStart}
         customSkins={customSkins}

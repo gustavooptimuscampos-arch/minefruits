@@ -9,10 +9,14 @@ export const HOTBAR_SIZE = 9;
  * baixo (os 9 primeiros espaços) enquanto houver espaço livre, como no Minecraft.
  * Quando um item acaba, o espaço dele na barra fica livre de novo.
  */
-export function useInventory() {
-  const [items, setItemsState] = useState<Item[]>([]);
-  const [hotbar, setHotbarState] = useState<(ItemType | null)[]>(Array(HOTBAR_SIZE).fill(null));
-  const [selectedSlot, setSelectedSlot] = useState(0);
+export function useInventory(initial?: { items: Item[]; hotbar: (ItemType | null)[]; selected: number } | null) {
+  // Começa com o inventário salvo (se houver)
+  const [items, setItemsState] = useState<Item[]>(() => initial?.items?.filter(i => i && i.count > 0) ?? []);
+  const [hotbar, setHotbarState] = useState<(ItemType | null)[]>(() => {
+    const saved = initial?.hotbar ?? [];
+    return Array.from({ length: HOTBAR_SIZE }, (_, i) => saved[i] ?? null);
+  });
+  const [selectedSlot, setSelectedSlot] = useState(() => Math.min(HOTBAR_SIZE - 1, Math.max(0, initial?.selected ?? 0)));
   const [craftingOpen, setCraftingOpen] = useState(false);
 
   // Cópias síncronas: vários itens podem entrar no mesmo instante (antes do React redesenhar)

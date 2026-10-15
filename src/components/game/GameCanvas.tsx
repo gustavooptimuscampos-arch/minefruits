@@ -29,6 +29,7 @@ import { playerPosition, playerLook, playerCommands, mobRegistry, mobFrozenUntil
 import { PowerEffects } from './PowerEffects';
 import { FRUIT_POWERS, loadPowers, saveLocalPowers } from './powers';
 import { supabase } from '@/integrations/supabase/client';
+import { GameSave, WorldSave, loadLocalSave, saveLocal, saveCloud } from './save';
 
 interface GameCanvasProps {
   skin: SkinData;
@@ -40,35 +41,53 @@ interface GameCanvasProps {
   savedPowers?: unknown;
   /** true quando há conta logada (aí os poderes também são salvos na conta). */
   loggedIn?: boolean;
+  /** Progresso salvo (moedas, loja e, no solo, o mundo). */
+  save?: GameSave | null;
+  /** Solo: true = continua o mundo salvo; false = mundo novo. */
+  continueWorld?: boolean;
 }
 
-export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', savedPowers, loggedIn = false }: GameCanvasProps) {
+export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', savedPowers, loggedIn = false, save = null, continueWorld = false }: GameCanvasProps) {
+  // Mundo salvo (só no solo: no multiplayer o mapa é da sala)
+  const [ws] = useState<WorldSave | null>(() => (!multiplayer && continueWorld ? save?.world ?? null : null));
+  const personal = save?.personal;
   // Solo: mapa novo a cada partida. Multiplayer: a semente vem do código da sala,
   // então todos na sala recebem a mesma ilha.
-  const [worldSeed] = useState(() => (multiplayer ? seedFromString(multiplayer.roomCode) : Math.floor(Math.random() * 1e9)));
+  const [worldSeed] = useState(() => (multiplayer ? seedFromString(multiplayer.roomCode) : ws?.seed ?? Math.floor(Math.random() * 1e9)));
   const biomeLayout = useMemo(() => buildBiomeLayout(worldSeed), [worldSeed]);
   // O mundo é um objeto que muda no lugar; "worldVersion" avisa o React para redesenhar
   const world = useMemo(() => generateTerrain(biomeLayout), [biomeLayout]);
   const [worldVersion, setWorldVersion] = useState(0);
-  const initialFruits = useMemo(() => generateFruits(world, worldSeed, biomeLayout), [world, worldSeed, biomeLayout]);
+  const initialFruits = useMemo(() => {
+    const generated = generateFruits(world, worldSeed, biomeLayout);
+    if (!ws) return generated;
+    // Continua o mundo salvo: refaz os blocos que o jogador quebrou/colocou (depois da geração das frutas, que cava escadas)
+    world.importEdits(ws.edits);
+    const taken = new Set(ws.fruitsTaken);
+    return generated.map(f => (taken.has(f.id) ? { ...f, collected: true } : f));
+  }, [world, worldSeed, biomeLayout, ws]);
   const [fruits, setFruits] = useState(initialFruits);
-  const initialCoins = useMemo(() => generateCoins(world, worldSeed), [world, worldSeed]);
+  const initialCoins = useMemo(() => {
+    const generated = generateCoins(world, worldSeed);
+    const taken = new Set(ws?.coinsTaken ?? []);
+    return generated.map(c => (taken.has(c.id) ? { ...c, collected: true } : c));
+  }, [world, worldSeed, ws]);
   const [coins, setCoins] = useState(initialCoins);
-  const [voxelCoins, setVoxelCoins] = useState(0);
+  const [voxelCoins, setVoxelCoins] = useState(() => personal?.voxelCoins ?? 0);
   const [shopOpen, setShopOpen] = useState(false);
-  const [ownedItems, setOwnedItems] = useState<string[]>([]);
-  const [equippedItems, setEquippedItems] = useState<Record<string, string | null>>({});
-  const [score, setScore] = useState(0);
-  const [collectedFruits, setCollectedFruits] = useState<FruitType[]>([]);
-  const [blocksDestroyed, setBlocksDestroyed] = useState(0);
+  const [ownedItems, setOwnedItems] = useState<string[]>(() => personal?.ownedItems ?? []);
+  const [equippedItems, setEquippedItems] = useState<Record<string, string | null>>(() => personal?.equippedItems ?? {});
+  const [score, setScore] = useState(() => ws?.score ?? 0);
+  const [collectedFruits, setCollectedFruits] = useState<FruitType[]>(() => ws?.collectedFruits ?? []);
+  const [blocksDestroyed, setBlocksDestroyed] = useState(() => ws?.blocksDestroyed ?? 0);
   const [pointerLocked, setLocked] = useState(false);
   // No celular não existe "travar o mouse": o jogo fica ativo direto.
   const locked = pointerLocked || isTouchDevice;
-  const [playerHealth, setPlayerHealth] = useState(100);
-  const [hunger, setHunger] = useState(100);
+  const [playerHealth, setPlayerHealth] = useState(() => (ws && ws.player.health > 0 ? ws.player.health : 100));
+  const [hunger, setHunger] = useState(() => (ws ? Math.max(20, ws.player.hunger) : 100));
   const [isNight, setIsNight] = useState(false);
   const [mobs, setMobs] = useState<MobData[]>([]);
-  const [mobsKilled, setMobsKilled] = useState(0);
+  const [mobsKilled, setMobsKilled] = useState(() => ws?.mobsKilled ?? 0);
   const [localChat, setLocalChat] = useState<ChatMessage[]>([]);
   const [showRanking, setShowRanking] = useState(false);
   const [scoreLog, setScoreLog] = useState<ScoreEntry[]>([]);
@@ -85,7 +104,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
   const [powerReadyMap, setPowerReadyMap] = useState<Record<string, number>>({});
   const [now, setNow] = useState(() => performance.now());
 
-  const inventory = useInventory();
+  const inventory = useInventory(ws?.inventory);
   const { craftingOpen, setCraftingOpen, setSelectedSlot, equippedItem, collectBlock, addItem, removeItem, items: inventoryItems } = inventory;
 
   const isMultiplayer = !!multiplayer;
@@ -197,12 +216,18 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
 
   useEffect(() => {
     if (!spawnedRef.current) {
-      applyMobs([...spawnGuardians(initialFruits, world), ...spawnMobs(world, false)]);
+      // Guardiões já derrotados no jogo salvo continuam derrotados
+      const beaten = new Set(ws?.guardiansDefeated ?? []);
+      const guardians = spawnGuardians(initialFruits, world)
+        .map(g => (g.guardsFruit && beaten.has(g.guardsFruit) ? { ...g, health: 0, dead: true } : g));
+      applyMobs([...guardians, ...spawnMobs(world, false)]);
       spawnedRef.current = true;
     }
-  }, [world, applyMobs, initialFruits]);
+  }, [world, applyMobs, initialFruits, ws]);
 
-  const handleTimeChange = useCallback((_time: number, night: boolean) => {
+  const timeRef = useRef(ws?.time ?? 0.08);
+  const handleTimeChange = useCallback((time: number, night: boolean) => {
+    timeRef.current = time;
     if (night !== wasNightRef.current) {
       wasNightRef.current = night;
       setIsNight(night);
@@ -298,7 +323,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
     collectBlock(blockType, equippedItem);
     const drop = BLOCK_DROPS[blockType];
     if (drop) showNotice(`+1 ${ITEM_CONFIG[drop].emoji} ${ITEM_CONFIG[drop].label}`);
-    world.set(bx, by, bz, null);
+    world.edit(bx, by, bz, null);
     setWorldVersion(v => v + 1);
     setScore(s => s + 10);
     setBlocksDestroyed(d => d + 1);
@@ -322,7 +347,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
     const insideY = y + 1 > feet && y < feet + 1.8;
     if (insideX && insideZ && insideY) { showNotice('🧱 Muito perto: mire um pouco mais à frente'); return; }
     if (!removeItem(item, 1)) return;
-    world.set(x, y, z, block);
+    world.edit(x, y, z, block);
     setWorldVersion(v => v + 1);
   }, [equippedItem, world, removeItem, showNotice]);
 
@@ -565,6 +590,70 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
     return item?.color ? { color: item.color, emissive: item.emissive || item.color } : null;
   }, [equippedItems]);
 
+  // ---------- Salvar o progresso ----------
+  // Tudo o que entra no salvamento, sempre com o valor mais novo (os timers leem daqui)
+  const latest = useRef({ voxelCoins, ownedItems, equippedItems, score, collectedFruits, blocksDestroyed, mobsKilled, playerHealth, hunger, inventory });
+  latest.current = { voxelCoins, ownedItems, equippedItems, score, collectedFruits, blocksDestroyed, mobsKilled, playerHealth, hunger, inventory };
+
+  const buildSave = useCallback((): GameSave => {
+    const l = latest.current;
+    let worldSave: WorldSave | null;
+    if (isMultiplayer) {
+      // No multiplayer o mundo é da sala: mantém o mundo solo que já estava salvo
+      worldSave = loadLocalSave(playerId)?.world ?? save?.world ?? null;
+    } else {
+      worldSave = {
+        seed: worldSeed,
+        edits: world.exportEdits(),
+        player: { x: playerPosition.x, y: playerPosition.y, z: playerPosition.z, health: l.playerHealth, hunger: l.hunger },
+        inventory: { items: l.inventory.items, hotbar: l.inventory.hotbar, selected: l.inventory.selectedSlot },
+        score: l.score,
+        blocksDestroyed: l.blocksDestroyed,
+        mobsKilled: l.mobsKilled,
+        collectedFruits: l.collectedFruits,
+        fruitsTaken: fruitsRef.current.filter(f => f.collected).map(f => f.id),
+        coinsTaken: coinsRef.current.filter(c => c.collected).map(c => c.id),
+        guardiansDefeated: mobsRef.current.filter(m => m.type === 'guardian' && m.dead && m.guardsFruit).map(m => m.guardsFruit!),
+        time: timeRef.current,
+      };
+    }
+    return {
+      v: 1,
+      savedAt: Date.now(),
+      personal: { voxelCoins: l.voxelCoins, ownedItems: l.ownedItems, equippedItems: l.equippedItems },
+      world: worldSave,
+    };
+  }, [isMultiplayer, playerId, save, worldSeed, world]);
+
+  const lastCloudSave = useRef(0);
+  /** Salva no aparelho (na hora) e, com conta, na nuvem (no máximo a cada 45 s, ou já se forçado). */
+  const saveNow = useCallback((forceCloud = false) => {
+    const data = buildSave();
+    saveLocal(playerId, data);
+    if (loggedIn && (forceCloud || Date.now() - lastCloudSave.current > 45000)) {
+      lastCloudSave.current = Date.now();
+      saveCloud(playerId, data).catch(() => {});
+    }
+  }, [buildSave, playerId, loggedIn]);
+  const saveNowRef = useRef(saveNow);
+  saveNowRef.current = saveNow;
+
+  useEffect(() => {
+    // Salvamento automático a cada 15 s
+    const id = setInterval(() => saveNowRef.current(), 15000);
+    // Fechar a aba, trocar de app no celular, desligar a tela: salva antes
+    const onHide = () => { if (document.visibilityState === 'hidden') saveNowRef.current(true); };
+    const onLeave = () => saveNowRef.current(true);
+    document.addEventListener('visibilitychange', onHide);
+    window.addEventListener('pagehide', onLeave);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener('visibilitychange', onHide);
+      window.removeEventListener('pagehide', onLeave);
+      saveNowRef.current(true); // saiu da partida (botão Sair, voltar do navegador...)
+    };
+  }, []);
+
   const lockedFruitIds = useMemo(
     () => new Set(mobs.filter(m => m.type === 'guardian' && !m.dead && m.guardsFruit).map(m => m.guardsFruit!)),
     [mobs],
@@ -585,7 +674,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
           gl.toneMappingExposure = 1.05;
         }}
       >
-        <DayNightCycle onTimeChange={handleTimeChange} speed={0.000556} />
+        <DayNightCycle onTimeChange={handleTimeChange} speed={0.000556} initialTime={ws?.time} />
         <Weather />
         <Terrain world={world} version={worldVersion} />
         <Fruits fruits={fruits} lockedIds={lockedFruitIds} />
@@ -601,6 +690,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
           onMobHit={handlePlayerAttack} sendPosition={isMultiplayer ? mp.sendPosition : undefined}
           playerHealth={playerHealth} equippedItem={equippedItem}
           controlsEnabled={!anyOverlay} respawnKey={respawnKey} aura={auraData}
+          startPosition={ws ? [ws.player.x, ws.player.y, ws.player.z] : null}
           jumpBoost={powers.includes('rubber') ? 1.6 : 1} speedBoost={powers.includes('light') ? 1.25 : 1}
         />
         {isMultiplayer && <RemotePlayersRenderer players={mp.remotePlayers} />}
@@ -735,14 +825,14 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
                 ▶ Continuar
               </button>
               <button
-                onClick={() => onExit?.()}
+                onClick={() => { saveNowRef.current(true); onExit?.(); }}
                 className="font-pixel text-[10px] px-4 py-2 bg-destructive/80 text-destructive-foreground rounded-lg hover:bg-destructive"
               >
-                Sair para o menu
+                💾 Salvar e sair
               </button>
             </div>
             <p className="text-[10px] font-game text-muted-foreground mt-4">
-              Ao sair, o progresso desta partida é perdido.
+              💾 {isMultiplayer ? 'Suas moedas e itens da loja ficam salvos.' : 'O progresso é salvo sozinho. Ao voltar, escolha "Continuar".'}
             </p>
           </div>
         </div>

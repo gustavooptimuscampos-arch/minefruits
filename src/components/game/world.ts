@@ -73,6 +73,39 @@ export class World {
     this.touch(x, z);
   }
 
+  /** Blocos que o jogador mudou (quebrou/colocou), para salvar o mundo. Chave = índice do bloco. */
+  private edits = new Map<number, BlockType | null>();
+
+  /** Mudança feita pelo jogador: igual ao set, mas entra no salvamento. */
+  edit(x: number, y: number, z: number, type: BlockType | null) {
+    if (!this.inBounds(x, y, z)) return;
+    this.set(x, y, z, type);
+    this.edits.set(this.col(x, z) * WORLD_HEIGHT + y, type);
+  }
+
+  /** Lista compacta das mudanças: [x, y, z, tipo ou null]. */
+  exportEdits(): [number, number, number, BlockType | null][] {
+    const out: [number, number, number, BlockType | null][] = [];
+    for (const [i, type] of this.edits) {
+      const y = i % WORLD_HEIGHT;
+      const c = (i - y) / WORLD_HEIGHT;
+      const z = (c % this.size) - this.half;
+      const x = Math.floor(c / this.size) - this.half;
+      out.push([x, y, z, type]);
+    }
+    return out;
+  }
+
+  /** Reaplica mudanças salvas (ignora tipos de bloco que não existem mais). */
+  importEdits(list: [number, number, number, string | null][]) {
+    for (const [x, y, z, type] of list) {
+      if (type !== null && !ID_OF.has(type as BlockType)) continue;
+      this.edit(x, y, z, type as BlockType | null);
+    }
+  }
+
+  get editCount() { return this.edits.size; }
+
   /** Versão rápida para a geração do mapa (não marca chunks; só mantém o topo). */
   rawSet(x: number, y: number, z: number, type: BlockType | null) {
     if (!this.inBounds(x, y, z)) return;

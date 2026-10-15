@@ -29,14 +29,19 @@ function screensFlow() {
 
   for (const s of screens) {
     if (s === initial) continue;
-    const branch = new RegExp(`screen\\s*===\\s*'${s}'`).exec(text);
+    // O bloco que DESENHA a tela (if (screen === 'x') { return <...> }), não qualquer comparação com screen
+    const branch = new RegExp(`if\\s*\\(\\s*screen\\s*===\\s*'${s}'[^)]*\\)\\s*\\{?\\s*return\\s*\\(?\\s*<`).exec(text)
+      ?? new RegExp(`screen\\s*===\\s*'${s}'`).exec(text);
     if (!branch) {
       out.push(finding('NAV-001', 'erro', 'Navegação', file, lineOf(text, typeMatch.index),
         `A tela '${s}' existe no tipo Screen mas nunca é renderizada: o jogador fica numa tela em branco.`,
         `Adicione um bloco if (screen === '${s}') return <... />;`));
       continue;
     }
-    const block = text.slice(branch.index, branch.index + 600);
+    // O bloco da tela vai até o próximo "if (screen" (antes eram 600 letras fixas e props a mais escondiam o onExit)
+    const rest = text.slice(branch.index + 1);
+    const next = rest.search(/if \(screen ===/);
+    const block = text.slice(branch.index, branch.index + 1 + (next >= 0 ? next : Math.min(rest.length, 2500)));
     if (!/on(Back|Exit|Close)\s*=/.test(block)) {
       out.push(finding('NAV-002', 'erro', 'Navegação', file, lineOf(text, branch.index),
         `A tela '${s}' não recebe onBack/onExit: o jogador não tem como voltar.`,

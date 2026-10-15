@@ -34,6 +34,8 @@ interface PlayerProps {
   controlsEnabled?: boolean;
   /** Muda a cada morte: o jogador volta para o ponto de nascimento. */
   respawnKey?: number;
+  /** Onde o jogador estava quando saiu (jogo salvo). Só vale ao entrar; ao morrer volta ao início. */
+  startPosition?: [number, number, number] | null;
   aura?: { color: string; emissive: string } | null;
   /** Poderes passivos da fruta: pulo mais alto (Borracha), corrida mais rápida (Luz). */
   jumpBoost?: number;
@@ -114,7 +116,7 @@ function playFootstep(ref: React.MutableRefObject<AudioContext | null>, gain: nu
   } catch { /* audio unavailable */ }
 }
 
-export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, onBlockPlace, onUseItem, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, controlsEnabled = true, respawnKey = 0, aura, jumpBoost = 1, speedBoost = 1 }: PlayerProps) {
+export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, onBlockPlace, onUseItem, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, controlsEnabled = true, respawnKey = 0, startPosition = null, aura, jumpBoost = 1, speedBoost = 1 }: PlayerProps) {
   const { camera } = useThree();
   const controlsRef = useRef<React.ElementRef<typeof PointerLockControls>>(null);
   const velocity = useRef(new THREE.Vector3(0, 0, 0));
@@ -169,11 +171,20 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
 
   // Nasce ao montar e renasce a cada morte (respawnKey).
   // Não depende de "blocks": antes, quebrar um bloco teleportava o jogador de volta ao início.
+  const startRef = useRef(startPosition);
   useEffect(() => {
-    const safeSpawn = findSafeSpawn(worldRef.current);
-    const spawnY = safeSpawn.groundY + PLAYER_HEIGHT + 2;
-    camera.position.set(safeSpawn.x, spawnY, safeSpawn.z);
-    playerPos.current.set(safeSpawn.x, spawnY, safeSpawn.z);
+    const w = worldRef.current;
+    const safeSpawn = findSafeSpawn(w);
+    let sx = safeSpawn.x, sz = safeSpawn.z, spawnY = safeSpawn.groundY + PLAYER_HEIGHT + 2;
+    // Continuando um jogo salvo: volta para onde estava (se o lugar ainda estiver livre)
+    const saved = respawnKey === 0 ? startRef.current : null;
+    if (saved && w.inBounds(Math.floor(saved[0]), 1, Math.floor(saved[2]))) {
+      const feet = saved[1] - PLAYER_HEIGHT;
+      sx = saved[0]; sz = saved[2];
+      spawnY = bodyBlocked(w, sx, feet, sz) ? w.groundHeight(Math.floor(sx), Math.floor(sz)) + PLAYER_HEIGHT + 0.5 : saved[1] + 0.05;
+    }
+    camera.position.set(sx, spawnY, sz);
+    playerPos.current.set(sx, spawnY, sz);
     velocity.current.set(0, 0, 0);
     horizVel.current.set(0, 0, 0);
     // Ordem YXZ (giro → inclinação → rolagem): mexer só no "z" nunca vira a câmera de ponta-cabeça

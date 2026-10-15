@@ -6,6 +6,8 @@ import { lightState } from './lightState';
 interface DayNightCycleProps {
   onTimeChange: (time: number, isNight: boolean) => void;
   speed?: number;
+  /** Hora inicial (0 = meio-dia, 0.5 = meia-noite), para continuar um jogo salvo. */
+  initialTime?: number;
 }
 
 const SKY_DAY = new THREE.Color('#7ec0ee');
@@ -22,8 +24,8 @@ function smoothstep(a: number, b: number, x: number) {
 }
 
 // time: 0 = noon, 0.5 = midnight
-export function DayNightCycle({ onTimeChange, speed = 0.015 }: DayNightCycleProps) {
-  const timeRef = useRef(0.08);
+export function DayNightCycle({ onTimeChange, speed = 0.015, initialTime = 0.08 }: DayNightCycleProps) {
+  const timeRef = useRef(initialTime);
   const lastReport = useRef(-1);
   const sunRef = useRef<THREE.DirectionalLight>(null);
   const ambientRef = useRef<THREE.AmbientLight>(null);

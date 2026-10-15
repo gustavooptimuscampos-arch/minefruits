@@ -173,7 +173,7 @@ export async function runSmoke() {
       const kicked = (await page.locator('canvas').count()) === 0;
       if (kicked) return false;
       if (paused) {
-        await page.getByText('Continuar').click();
+        await page.getByRole('button', { name: /Continuar/ }).click();
         return gone('PAUSADO');
       }
       return false;
@@ -183,7 +183,7 @@ export async function runSmoke() {
     await step('Sair do jogo volta ao menu', async () => {
       if ((await page.locator('canvas').count()) === 0) return visible('JOGAR');
       await page.keyboard.press('Escape');
-      if (await visible('PAUSADO', 1000)) await page.getByText('Sair para o menu').click();
+      if (await visible('PAUSADO', 1000)) await page.getByRole('button', { name: /Salvar e sair/ }).click();
       else await page.getByText('Sair').first().click();
       return visible('JOGAR', 5000);
     }, { rule: 'RUN-011', category: 'Fluxo de navegação', message: 'Não foi possível voltar do jogo para o menu.' });
