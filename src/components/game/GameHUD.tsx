@@ -182,10 +182,12 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
             )}
             <span className="relative text-base">{power.emoji}</span>
             <span className="relative text-xs font-game text-foreground">{power.name}</span>
-            {power.uses !== undefined && (
-              <span className={`relative text-[10px] font-pixel ${power.uses <= 3 ? 'text-red-300' : 'text-amber-200'}`} title="Usos que sobram">
+            {power.uses !== undefined ? (
+              <span className={`relative text-[10px] font-pixel ${power.uses <= 3 ? 'text-red-300' : 'text-amber-200'}`} title="Usos que sobram (fruta inicial)">
                 ×{power.uses}
               </span>
+            ) : (
+              <span className="relative text-[11px] font-pixel text-emerald-300" title="Para sempre (fruta do Guardião)">∞</span>
             )}
             <span className="relative text-[10px] font-pixel text-purple-300 hide-on-touch">
               {power.remaining > 0 ? `${power.remaining.toFixed(1)}s` : 'F'}
@@ -238,7 +240,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
           <div className="text-xs font-pixel text-purple-300">✨ PODERES</div>
           {powers.length === 0 ? (
             <div className="text-[11px] font-game text-muted-foreground leading-snug">
-              Derrote um 🛡️ Guardião e pegue a fruta dele: o poder é seu para sempre, com {POWER_USES} usos por partida.
+              Frutas perto do começo dão {POWER_USES} usos. Derrote um 🛡️ Guardião e pegue a fruta dele para ter o poder para sempre.
               <div className="mt-1 text-[10px]">🔥 deserto • ❄️ taiga • 🩷 selva • ⚡ montanha • 🌑 ravina (escada)</div>
             </div>
           ) : (
@@ -249,8 +251,10 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
                   <span className="mr-1">{p.emoji}</span>
                   <span className={active ? 'text-purple-200 font-bold' : ''}>{p.name}</span>
                   {active && <span className="ml-1 text-[9px] font-pixel text-purple-300">F</span>}
-                  {p.uses !== undefined && (
-                    <span className={`ml-1 text-[10px] font-bold ${p.uses <= 3 ? 'text-red-300' : 'text-amber-200'}`}>{p.uses}/{POWER_USES}</span>
+                  {p.uses !== undefined ? (
+                    <span className={`ml-1 text-[10px] font-bold ${p.uses <= 3 ? 'text-red-300' : 'text-amber-200'}`}>{p.uses} usos</span>
+                  ) : (
+                    <span className="ml-1 text-[10px] font-bold text-emerald-300">∞ para sempre</span>
                   )}
                   {p.cooldown !== undefined && <span className="ml-1 text-[10px] opacity-70">({p.cooldown}s)</span>}
                   <div className="text-[10px] opacity-90">{p.description}</div>
@@ -260,7 +264,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
           )}
           {powers.length > 0 && (
             <div className="text-[10px] font-game text-muted-foreground">
-              {powers.length > 1 && 'Q troca o poder em uso · '}Os usos recarregam na próxima partida.
+              {powers.length > 1 && 'Q troca o poder em uso · '}Fruta do Guardião = para sempre.
             </div>
           )}
         </div>

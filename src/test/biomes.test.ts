@@ -166,3 +166,19 @@ describe('todas as frutas dá para pegar', () => {
     }
   });
 });
+
+import { generateStarterFruits } from '@/components/game/terrainGenerator';
+describe('frutas iniciais (sem Guardião)', () => {
+  it.each([1, 42, 2026])('semente %s: 5 frutas, uma de cada poder, perto do começo e em terra', (seed) => {
+    const world = generateTerrain(buildBiomeLayout(seed));
+    const wild = generateStarterFruits(world, seed);
+    expect(wild.map(f => f.type).sort()).toEqual(['dark', 'flame', 'ice', 'light', 'rubber']);
+    for (const f of wild) {
+      expect(f.wild).toBe(true);
+      expect(Math.hypot(f.position[0], f.position[2])).toBeLessThan(40);
+      expect(getGroundHeight(f.position[0], f.position[2], world)).toBeGreaterThan(WATER_LEVEL);
+    }
+    // ninguém ganha Guardião para fruta inicial
+    expect(spawnGuardians(generateFruits(world, seed, buildBiomeLayout(seed)), world).every(g => !g.guardsFruit?.startsWith('wild'))).toBe(true);
+  });
+});

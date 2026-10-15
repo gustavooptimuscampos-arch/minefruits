@@ -42,6 +42,8 @@ export interface Fruit {
   position: [number, number, number];
   type: FruitType;
   collected: boolean;
+  /** Fruta inicial, sem Guardião: dá só 10 usos do poder (a do Guardião é para sempre). */
+  wild?: boolean;
 }
 
 export const BLOCK_COLORS: Record<BlockType, string> = {

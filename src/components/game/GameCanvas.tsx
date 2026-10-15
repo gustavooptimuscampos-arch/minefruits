@@ -17,7 +17,7 @@ import { MobData, MOB_CONFIG, spawnMobs, spawnGuardians, ANIMAL_FOOD } from './m
 import { SkinData } from './skins';
 import { useMultiplayer } from './useMultiplayer';
 import { useInventory } from './useInventory';
-import { generateTerrain, generateFruits, generateCoins } from './terrainGenerator';
+import { generateTerrain, generateFruits, generateCoins, generateStarterFruits } from './terrainGenerator';
 import { CoinsRenderer } from './CoinsRenderer';
 import { CoinShop } from './CoinShop';
 import { MOB_POINTS, FRUIT_POINTS, FRUIT_HUNGER, ScoreEntry } from './scoring';
@@ -27,7 +27,7 @@ import { isTypingTarget } from './keyboard';
 import { BIOMES, BiomeId, biomeAt, buildBiomeLayout, seedFromString } from './biomes';
 import { playerPosition, playerLook, playerCommands, mobRegistry, mobFrozenUntil, addPowerEffect } from './playerState';
 import { PowerEffects } from './PowerEffects';
-import { FRUIT_POWERS, ICE_FREEZE_SECONDS, POWER_USES, PowerUses, loadPowers, saveLocalPowers, startUses } from './powers';
+import { FRUIT_POWERS, ICE_FREEZE_SECONDS, POWER_USES, PowerUses, cleanUses, loadPowers, saveLocalPowers, usablePowers } from './powers';
 import { supabase } from '@/integrations/supabase/client';
 import { GameSave, WorldSave, loadLocalSave, saveLocal, saveCloud } from './save';
 
@@ -59,7 +59,9 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
   const world = useMemo(() => generateTerrain(biomeLayout), [biomeLayout]);
   const [worldVersion, setWorldVersion] = useState(0);
   const initialFruits = useMemo(() => {
-    const generated = generateFruits(world, worldSeed, biomeLayout);
+    // Frutas dos Guardiões (para sempre) + frutas iniciais sem Guardião (10 usos), perto do começo
+    const guarded = generateFruits(world, worldSeed, biomeLayout);
+    const generated = [...guarded, ...generateStarterFruits(world, worldSeed)];
     if (!ws) return generated;
     // Continua o mundo salvo: refaz os blocos que o jogador quebrou/colocou (depois da geração das frutas, que cava escadas)
     world.importEdits(ws.edits);
@@ -99,9 +101,13 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
   const [biome, setBiome] = useState<BiomeId>('plains');
   // Poderes ganhos ficam para sempre (salvos); "power" é o que está em uso agora
   // Poderes ganhos: para sempre. Usos: 10 de cada por partida (continuar o mundo salvo mantém os que sobraram)
-  const [powers, setPowers] = useState<FruitType[]>(() => loadPowers(playerId, savedPowers));
-  const [charges, setCharges] = useState<PowerUses>(() => startUses(powers, ws?.powerUses));
-  const [power, setPower] = useState<FruitType | null>(() => powers[powers.length - 1] ?? null);
+  // Poderes para sempre (fruta do Guardião) e usos dos poderes de frutas iniciais (10 por fruta)
+  const [permanentPowers, setPowers] = useState<FruitType[]>(() => loadPowers(playerId, savedPowers));
+  const [charges, setCharges] = useState<PowerUses>(() => cleanUses(ws?.powerUses));
+  const powers = useMemo(() => usablePowers(permanentPowers, charges), [permanentPowers, charges]);
+  const permanentRef = useRef(permanentPowers);
+  permanentRef.current = permanentPowers;
+  const [power, setPower] = useState<FruitType | null>(() => usablePowers(permanentPowers, charges).slice(-1)[0] ?? null);
   // Cada poder tem a sua recarga (antes era uma só: depois do Gelo a Luz ficava 8 s sem funcionar)
   const [powerReadyMap, setPowerReadyMap] = useState<Record<string, number>>({});
   const [now, setNow] = useState(() => performance.now());
@@ -220,7 +226,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
     if (!spawnedRef.current) {
       // Guardiões já derrotados no jogo salvo continuam derrotados
       const beaten = new Set(ws?.guardiansDefeated ?? []);
-      const guardians = spawnGuardians(initialFruits, world)
+      const guardians = spawnGuardians(initialFruits.filter(f => !f.wild), world)
         .map(g => (g.guardsFruit && beaten.has(g.guardsFruit) ? { ...g, health: 0, dead: true } : g));
       applyMobs([...guardians, ...spawnMobs(world, false)]);
       spawnedRef.current = true;
@@ -370,7 +376,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
 
     const pts = FRUIT_POINTS[fruit.type];
     const config = FRUIT_CONFIG[fruit.type];
-    setCollectedFruits(prev => [...prev, fruit.type]);
+    if (!fruit.wild) setCollectedFruits(prev => [...prev, fruit.type]); // o contador "Frutas: x de 8" é das frutas dos Guardiões
     setScore(s => s + pts);
     setHunger(h => Math.min(100, h + FRUIT_HUNGER[fruit.type]));
     setScoreLog(prev => {
@@ -378,21 +384,36 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
       if (existing) return prev.map(e => e === existing ? { ...e, count: e.count + 1, points: e.points + pts } : e);
       return [...prev, { type: 'fruit', name: config.name, emoji: config.power.split(' ')[0], points: pts, count: 1 }];
     });
-    // Comer a fruta dá o poder dela para sempre, com 10 usos por partida (comer de novo recarrega)
-    setPowers(prev => (prev.includes(fruit.type) ? prev : [...prev, fruit.type]));
-    setCharges(prev => ({ ...prev, [fruit.type]: POWER_USES }));
+    const info = FRUIT_POWERS[fruit.type];
     setPower(fruit.type);
     setPowerReadyMap(prev => ({ ...prev, [fruit.type]: 0 }));
-    showNotice(`${FRUIT_POWERS[fruit.type].emoji} Poder ${FRUIT_POWERS[fruit.type].name} é seu para sempre! ${POWER_USES} usos por partida · aperte F`);
+    if (!fruit.wild) {
+      // Fruta do Guardião: o poder é para sempre e sem limite de usos
+      setPowers(prev => (prev.includes(fruit.type) ? prev : [...prev, fruit.type]));
+      setCharges(prev => { const next = { ...prev }; delete next[fruit.type]; return next; });
+      showNotice(`${info.emoji} Poder ${info.name} é seu PARA SEMPRE! Aperte F`);
+    } else if (permanentRef.current.includes(fruit.type)) {
+      showNotice(`${info.emoji} Você já tem ${info.name} para sempre!`);
+    } else {
+      // Fruta inicial (sem Guardião): só 10 usos
+      setCharges(prev => ({ ...prev, [fruit.type]: (prev[fruit.type] ?? 0) + POWER_USES }));
+      showNotice(`${info.emoji} ${info.name}: ${POWER_USES} usos! Derrote o Guardião dessa fruta para ter para sempre`);
+    }
   }, [showNotice]);
 
   // Salva os poderes neste aparelho e, com conta, na conta também
   const savedOnce = useRef(false);
   useEffect(() => {
-    if (!savedOnce.current) { savedOnce.current = true; if (powers.length === 0) return; }
-    saveLocalPowers(playerId, powers);
-    if (loggedIn) supabase.auth.updateUser({ data: { fruit_powers: powers } }).catch(() => { /* fica salvo no aparelho */ });
-  }, [powers, playerId, loggedIn]);
+    if (!savedOnce.current) { savedOnce.current = true; if (permanentPowers.length === 0) return; }
+    saveLocalPowers(playerId, permanentPowers);
+    if (loggedIn) supabase.auth.updateUser({ data: { fruit_powers: permanentPowers } }).catch(() => { /* fica salvo no aparelho */ });
+  }, [permanentPowers, playerId, loggedIn]);
+
+  // Os usos do poder em uso acabaram: passa para outro que dê para usar
+  useEffect(() => {
+    if (power && !powers.includes(power)) setPower(powers[powers.length - 1] ?? null);
+    else if (!power && powers.length) setPower(powers[powers.length - 1]);
+  }, [power, powers]);
 
   /** Troca o poder em uso entre os que o jogador já tem. */
   const cyclePower = useCallback(() => {
@@ -462,11 +483,8 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
   const powerReadyAt = power ? (powerReadyMap[power] ?? 0) : 0;
   const usePower = useCallback(() => {
     if (!power) { showNotice('🍎 Pegue uma fruta para ganhar um poder'); return; }
-    if ((charges[power] ?? 0) <= 0) {
-      const others = powers.filter(p => p !== power && (charges[p] ?? 0) > 0);
-      showNotice(`${FRUIT_POWERS[power].emoji} Sem usos de ${FRUIT_POWERS[power].name} nesta partida${others.length ? ' · aperte Q para trocar' : ''}`);
-      return;
-    }
+    const forever = permanentPowers.includes(power);
+    if (!forever && (charges[power] ?? 0) <= 0) return;
     const t = performance.now();
     if (t < powerReadyAt) {
       showNotice(`⏳ ${FRUIT_POWERS[power].name} recarregando: ${Math.ceil((powerReadyAt - t) / 1000)} s`);
@@ -474,13 +492,15 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
     }
     const info = FRUIT_POWERS[power];
     setPowerReadyMap(prev => ({ ...prev, [power]: t + info.cooldown * 1000 }));
-    // Gasta 1 uso desta partida
-    const left = Math.max(0, (charges[power] ?? 0) - 1);
-    setCharges(prev => ({ ...prev, [power]: left }));
-    if (left === 0) {
-      setTimeout(() => showNotice(`${info.emoji} Acabaram os usos de ${info.name} nesta partida. Recarrega na próxima!`), 50);
-    } else if (left <= 3) {
-      showNotice(`${info.emoji} ${info.name}: só ${left} ${left === 1 ? 'uso' : 'usos'} nesta partida!`);
+    // Poder de fruta inicial: gasta 1 uso (o da fruta do Guardião não tem limite)
+    if (!forever) {
+      const left = Math.max(0, (charges[power] ?? 0) - 1);
+      setCharges(prev => { const next = { ...prev }; if (left > 0) next[power] = left; else delete next[power]; return next; });
+      if (left === 0) {
+        setTimeout(() => showNotice(`${info.emoji} Acabaram os usos de ${info.name}! Derrote o Guardião da fruta para ter para sempre`), 50);
+      } else if (left <= 3) {
+        showNotice(`${info.emoji} ${info.name}: só ${left} ${left === 1 ? 'uso' : 'usos'}!`);
+      }
     }
 
     const me = playerPosition.clone();
@@ -531,7 +551,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
       addPowerEffect('rubber', target ? target.p : me.clone().addScaledVector(look, 6), 1.6);
       if (target) handleMobHit(target.m.id, info.damage);
     }
-  }, [power, powers, powerReadyAt, handleMobHit, showNotice, charges]);
+  }, [power, permanentPowers, powerReadyAt, handleMobHit, showNotice, charges]);
   useEffect(() => { usePowerRef.current = usePower; }, [usePower]);
   // Atualiza a barra de recarga do poder
   useEffect(() => {
@@ -722,11 +742,11 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
         roomCode={multiplayer?.roomCode}
         playersOnline={isMultiplayer ? mp.remotePlayers.length + 1 : undefined}
         inventory={inventory} voxelCoins={voxelCoins} locked={locked || anyOverlay}
-        totalFruits={fruits.length}
+        totalFruits={fruits.filter(f => !f.wild).length}
         biome={`${BIOMES[biome].emoji} ${BIOMES[biome].name}`}
-        powers={powers.map(t => ({ type: t, emoji: FRUIT_POWERS[t].emoji, name: FRUIT_POWERS[t].name, description: FRUIT_POWERS[t].description, cooldown: FRUIT_POWERS[t].cooldown, uses: charges[t] ?? 0 }))}
+        powers={powers.map(t => ({ type: t, emoji: FRUIT_POWERS[t].emoji, name: FRUIT_POWERS[t].name, description: FRUIT_POWERS[t].description, cooldown: FRUIT_POWERS[t].cooldown, uses: permanentPowers.includes(t) ? undefined : charges[t] ?? 0 }))}
         onSelectPower={(t: FruitType) => setPower(t)}
-        power={power ? { emoji: FRUIT_POWERS[power].emoji, name: FRUIT_POWERS[power].name, cooldown: FRUIT_POWERS[power].cooldown, remaining: Math.max(0, (powerReadyAt - now) / 1000), uses: charges[power] ?? 0 } : null}
+        power={power ? { emoji: FRUIT_POWERS[power].emoji, name: FRUIT_POWERS[power].name, cooldown: FRUIT_POWERS[power].cooldown, remaining: Math.max(0, (powerReadyAt - now) / 1000), uses: permanentPowers.includes(power) ? undefined : charges[power] ?? 0 } : null}
         guardiansLeft={mobs.filter(m => m.type === 'guardian' && !m.dead).length}
         onPause={() => { releasePointer(); setPaused(true); }}
       />

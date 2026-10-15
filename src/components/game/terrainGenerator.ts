@@ -441,6 +441,26 @@ export function generateFruits(world: World, seed = 1, layout?: BiomeLayout): Fr
   return placed.map((p, i) => ({ id: `fruit-${i}`, position: p.position, type: p.type, collected: false }));
 }
 
+/**
+ * Frutas iniciais: uma de cada poder, sem Guardião, espalhadas perto de onde o jogador nasce.
+ * Dão só 10 usos do poder; para ter o poder para sempre, é preciso derrotar o Guardião.
+ */
+export function generateStarterFruits(world: World, seed = 1): Fruit[] {
+  const types: FruitType[] = ['flame', 'ice', 'light', 'dark', 'rubber'];
+  const rand = mulberry32(seed + 303);
+  const out: Fruit[] = [];
+  for (let tries = 0; tries < 600 && out.length < types.length; tries++) {
+    const ang = rand() * Math.PI * 2;
+    const dist = 10 + rand() * 26;
+    const x = Math.round(Math.cos(ang) * dist), z = Math.round(Math.sin(ang) * dist);
+    if (Math.abs(x) >= WORLD_HALF - 3 || Math.abs(z) >= WORLD_HALF - 3 || !isGoodSpot(world, x, z)) continue;
+    if (out.some(f => Math.hypot(f.position[0] - x, f.position[2] - z) < 8)) continue;
+    const type = types[out.length];
+    out.push({ id: `wild-${type}`, type, wild: true, collected: false, position: [x + 0.5, world.groundHeight(x, z) + 1.5, z + 0.5] });
+  }
+  return out;
+}
+
 export function generateCoins(world: World, seed = 1): GameCoin[] {
   const rand = mulberry32(seed + 202);
   return landSpots(world, rand, 70, 5).map((pos, i) => {

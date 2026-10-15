@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { loadPowers, saveLocalPowers, startUses, POWER_USES, ICE_FREEZE_SECONDS, FRUIT_POWERS } from '@/components/game/powers';
+import { loadPowers, saveLocalPowers, cleanUses, usablePowers, POWER_USES, ICE_FREEZE_SECONDS, FRUIT_POWERS } from '@/components/game/powers';
 
-describe('poderes para sempre, com usos por partida', () => {
+describe('poderes: fruta inicial (10 usos) e fruta do Guardião (para sempre)', () => {
   beforeEach(() => localStorage.clear());
 
-  it('10 usos por partida; o Gelo congela por 20 s', () => {
+  it('fruta inicial dá 10 usos; o Gelo congela por 20 s', () => {
     expect(POWER_USES).toBe(10);
     expect(ICE_FREEZE_SECONDS).toBe(20);
     expect(FRUIT_POWERS.ice.description).toContain('20 segundos');
@@ -15,14 +15,15 @@ describe('poderes para sempre, com usos por partida', () => {
     expect(loadPowers('ana')).toEqual(['flame', 'ice']);
   });
 
-  it('cada partida nova começa com 10 usos de cada poder', () => {
-    expect(startUses(['flame', 'dark'])).toEqual({ flame: 10, dark: 10 });
+  it('fruta inicial dá usos; fruta do Guardião é para sempre', () => {
+    // Fogo para sempre (Guardião) + 3 usos de Gelo (fruta inicial); Trevas sem usos não aparece
+    expect(usablePowers(['flame'], { ice: 3, dark: 0 })).toEqual(['flame', 'ice']);
+    expect(usablePowers([], {})).toEqual([]);
   });
 
-  it('continuar o mundo salvo mantém os usos que sobraram', () => {
-    expect(startUses(['flame', 'dark'], { flame: 3 , dark: 0 })).toEqual({ flame: 3, dark: 0 });
-    // poder ganho depois do salvamento começa cheio; números estranhos são corrigidos
-    expect(startUses(['flame', 'ice'], { flame: 99 })).toEqual({ flame: 10, ice: 10 });
+  it('usos salvos no mundo são limpos ao carregar', () => {
+    expect(cleanUses({ ice: 3, dark: 0, hack: 5, flame: 500 })).toEqual({ ice: 3, flame: 99 });
+    expect(cleanUses(null)).toEqual({});
   });
 
   it('junta o que está no aparelho com o que está na conta', () => {

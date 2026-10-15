@@ -25,10 +25,10 @@ export const FRUIT_POWERS: Record<FruitType, FruitPower> = {
 export const ALL_POWERS: FruitType[] = ['flame', 'ice', 'light', 'dark', 'rubber'];
 const ALL = ALL_POWERS;
 
-/** Usos de cada poder por partida. O poder é para sempre; os usos recarregam na próxima partida. */
+/** Usos que uma fruta inicial (sem Guardião) dá. A fruta do Guardião é para sempre e sem limite. */
 export const POWER_USES = 10;
 
-/** Usos que sobram nesta partida. */
+/** Usos que sobram dos poderes de frutas iniciais (os que ainda não são para sempre). */
 export type PowerUses = Partial<Record<FruitType, number>>;
 
 const storageKey = (playerId: string) => `minefruits:poderes:${playerId}`;
@@ -58,12 +58,18 @@ export function saveLocalPowers(playerId: string, powers: FruitType[]) {
   try { localStorage.setItem(storageKey(playerId), JSON.stringify(powers)); } catch { /* sem memória do navegador */ }
 }
 
-/** Usos no começo da partida: os que sobraram (continuando um mundo salvo) ou 10 de cada. */
-export function startUses(powers: FruitType[], saved?: PowerUses | null): PowerUses {
+/** Limpa os usos salvos no mundo (números estranhos viram 0..99). */
+export function cleanUses(saved?: unknown): PowerUses {
   const out: PowerUses = {};
-  for (const t of powers) {
-    const n = saved ? Math.floor(Number(saved[t])) : NaN;
-    out[t] = Number.isFinite(n) ? Math.max(0, Math.min(POWER_USES, n)) : POWER_USES;
+  if (!saved || typeof saved !== 'object') return out;
+  for (const t of ALL) {
+    const n = Math.floor(Number((saved as Record<string, unknown>)[t]));
+    if (n > 0) out[t] = Math.min(n, 99);
   }
   return out;
+}
+
+/** Poderes que dá para usar: os para sempre + os de fruta inicial com usos sobrando. */
+export function usablePowers(permanent: FruitType[], uses: PowerUses): FruitType[] {
+  return ALL.filter(t => permanent.includes(t) || (uses[t] ?? 0) > 0);
 }
