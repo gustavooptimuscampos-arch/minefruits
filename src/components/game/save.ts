@@ -33,6 +33,8 @@ export interface WorldSave {
   coinsTaken: string[];
   guardiansDefeated: string[];
   time: number;
+  /** Usos de poder que sobraram nesta partida (continuar não recarrega). */
+  powerUses?: Partial<Record<FruitType, number>>;
 }
 
 const key = (playerId: string) => `minefruits:save:${playerId}`;

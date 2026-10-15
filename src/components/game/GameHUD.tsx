@@ -238,7 +238,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
           <div className="text-xs font-pixel text-purple-300">✨ PODERES</div>
           {powers.length === 0 ? (
             <div className="text-[11px] font-game text-muted-foreground leading-snug">
-              Derrote um 🛡️ Guardião e pegue a fruta dele: cada fruta dá {POWER_USES} usos do poder.
+              Derrote um 🛡️ Guardião e pegue a fruta dele: o poder é seu para sempre, com {POWER_USES} usos por partida.
               <div className="mt-1 text-[10px]">🔥 deserto • ❄️ taiga • 🩷 selva • ⚡ montanha • 🌑 ravina (escada)</div>
             </div>
           ) : (
@@ -260,7 +260,7 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
           )}
           {powers.length > 0 && (
             <div className="text-[10px] font-game text-muted-foreground">
-              {powers.length > 1 && 'Q troca o poder em uso · '}Usos acabaram? A fruta volta para o lugar dela.
+              {powers.length > 1 && 'Q troca o poder em uso · '}Os usos recarregam na próxima partida.
             </div>
           )}
         </div>

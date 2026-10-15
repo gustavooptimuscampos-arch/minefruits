@@ -25,51 +25,45 @@ export const FRUIT_POWERS: Record<FruitType, FruitPower> = {
 export const ALL_POWERS: FruitType[] = ['flame', 'ice', 'light', 'dark', 'rubber'];
 const ALL = ALL_POWERS;
 
-/** Quantas vezes cada fruta deixa usar o poder. Acabou: a fruta volta para o lugar dela. */
+/** Usos de cada poder por partida. O poder é para sempre; os usos recarregam na próxima partida. */
 export const POWER_USES = 10;
 
-/** Usos que sobram de cada poder (só aparecem os que têm usos). */
-export type PowerCharges = Partial<Record<FruitType, number>>;
+/** Usos que sobram nesta partida. */
+export type PowerUses = Partial<Record<FruitType, number>>;
 
 const storageKey = (playerId: string) => `minefruits:poderes:${playerId}`;
 
 /**
- * Limpa o que veio de fora (memória do navegador ou da conta).
- * Aceita o formato antigo (lista de poderes "para sempre"): cada um vira 10 usos.
+ * Limpa a lista de poderes vinda de fora (memória do navegador ou da conta).
+ * Aceita lista (["flame"]) ou o formato de usos ({ flame: 7 }) de uma versão de teste.
  */
-export function cleanCharges(value: unknown): PowerCharges | null {
-  if (Array.isArray(value)) {
-    return Object.fromEntries(ALL.filter(t => value.includes(t)).map(t => [t, POWER_USES]));
-  }
-  if (value && typeof value === 'object') {
-    const out: PowerCharges = {};
-    for (const t of ALL) {
-      const n = Math.floor(Number((value as Record<string, unknown>)[t]));
-      if (n > 0) out[t] = Math.min(n, 99);
-    }
-    return out;
-  }
-  return null;
-}
-
-/** Poderes com usos sobrando, na ordem fixa. */
-export function ownedPowers(charges: PowerCharges): FruitType[] {
-  return ALL.filter(t => (charges[t] ?? 0) > 0);
+export function cleanPowers(value: unknown): FruitType[] {
+  if (Array.isArray(value)) return ALL.filter(t => value.includes(t));
+  if (value && typeof value === 'object') return ALL.filter(t => t in (value as object));
+  return [];
 }
 
 /**
- * Usos de cada poder: o salvo neste aparelho vale primeiro (é o mais recente);
- * sem nada aqui, usa o da conta (outro aparelho).
+ * Poderes que o jogador já ganhou, para sempre: ficam salvos neste aparelho
+ * e, se ele tem conta, também na conta (vale em qualquer aparelho).
  */
-export function loadCharges(playerId: string, fromAccount?: unknown): PowerCharges {
-  let local: unknown = null;
-  try {
-    const raw = localStorage.getItem(storageKey(playerId));
-    local = raw ? JSON.parse(raw) : null;
-  } catch { /* sem memória do navegador */ }
-  return cleanCharges(local) ?? cleanCharges(fromAccount) ?? {};
+export function loadPowers(playerId: string, fromAccount?: unknown): FruitType[] {
+  let local: unknown = [];
+  try { local = JSON.parse(localStorage.getItem(storageKey(playerId)) || '[]'); } catch { /* sem memória do navegador */ }
+  const both = new Set([...cleanPowers(local), ...cleanPowers(fromAccount)]);
+  return ALL.filter(t => both.has(t));
 }
 
-export function saveLocalCharges(playerId: string, charges: PowerCharges) {
-  try { localStorage.setItem(storageKey(playerId), JSON.stringify(charges)); } catch { /* sem memória do navegador */ }
+export function saveLocalPowers(playerId: string, powers: FruitType[]) {
+  try { localStorage.setItem(storageKey(playerId), JSON.stringify(powers)); } catch { /* sem memória do navegador */ }
+}
+
+/** Usos no começo da partida: os que sobraram (continuando um mundo salvo) ou 10 de cada. */
+export function startUses(powers: FruitType[], saved?: PowerUses | null): PowerUses {
+  const out: PowerUses = {};
+  for (const t of powers) {
+    const n = saved ? Math.floor(Number(saved[t])) : NaN;
+    out[t] = Number.isFinite(n) ? Math.max(0, Math.min(POWER_USES, n)) : POWER_USES;
+  }
+  return out;
 }

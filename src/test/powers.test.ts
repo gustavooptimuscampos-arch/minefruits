@@ -1,46 +1,46 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { loadCharges, saveLocalCharges, ownedPowers, cleanCharges, POWER_USES, ICE_FREEZE_SECONDS, FRUIT_POWERS } from '@/components/game/powers';
+import { loadPowers, saveLocalPowers, startUses, POWER_USES, ICE_FREEZE_SECONDS, FRUIT_POWERS } from '@/components/game/powers';
 
-describe('poderes com usos limitados', () => {
+describe('poderes para sempre, com usos por partida', () => {
   beforeEach(() => localStorage.clear());
 
-  it('cada fruta dá 10 usos; o Gelo congela por 20 s', () => {
+  it('10 usos por partida; o Gelo congela por 20 s', () => {
     expect(POWER_USES).toBe(10);
     expect(ICE_FREEZE_SECONDS).toBe(20);
     expect(FRUIT_POWERS.ice.description).toContain('20 segundos');
   });
 
-  it('os usos que sobram ficam salvos para a próxima partida', () => {
-    saveLocalCharges('ana', { flame: 7, ice: 10 });
-    expect(loadCharges('ana')).toEqual({ flame: 7, ice: 10 });
-    expect(ownedPowers(loadCharges('ana'))).toEqual(['flame', 'ice']);
+  it('o poder ganho continua salvo (para sempre)', () => {
+    saveLocalPowers('ana', ['flame', 'ice']);
+    expect(loadPowers('ana')).toEqual(['flame', 'ice']);
   });
 
-  it('poder com 0 usos some da lista', () => {
-    expect(ownedPowers({ flame: 0, dark: 2 })).toEqual(['dark']);
+  it('cada partida nova começa com 10 usos de cada poder', () => {
+    expect(startUses(['flame', 'dark'])).toEqual({ flame: 10, dark: 10 });
   });
 
-  it('quem tinha poder "para sempre" (versão antiga) ganha 10 usos de cada', () => {
-    localStorage.setItem('minefruits:poderes:ana', JSON.stringify(['light', 'rubber']));
-    expect(loadCharges('ana')).toEqual({ light: 10, rubber: 10 });
-    expect(cleanCharges(['flame'])).toEqual({ flame: 10 });
+  it('continuar o mundo salvo mantém os usos que sobraram', () => {
+    expect(startUses(['flame', 'dark'], { flame: 3 , dark: 0 })).toEqual({ flame: 3, dark: 0 });
+    // poder ganho depois do salvamento começa cheio; números estranhos são corrigidos
+    expect(startUses(['flame', 'ice'], { flame: 99 })).toEqual({ flame: 10, ice: 10 });
   });
 
-  it('o aparelho vale primeiro; sem nada nele, usa o da conta', () => {
-    expect(loadCharges('ana', { dark: 4 })).toEqual({ dark: 4 });
-    saveLocalCharges('ana', { dark: 2 });
-    expect(loadCharges('ana', { dark: 4 })).toEqual({ dark: 2 });
+  it('junta o que está no aparelho com o que está na conta', () => {
+    saveLocalPowers('ana', ['dark']);
+    expect(loadPowers('ana', ['light', 'dark'])).toEqual(['light', 'dark']);
   });
 
-  it('cada jogador tem os seus poderes', () => {
-    saveLocalCharges('ana', { rubber: 5 });
-    expect(loadCharges('bia')).toEqual({});
+  it('aceita o formato da versão de teste com usos ({ fogo: 7 })', () => {
+    localStorage.setItem('minefruits:poderes:ana', JSON.stringify({ rubber: 7 }));
+    expect(loadPowers('ana')).toEqual(['rubber']);
   });
 
-  it('ignora dados estranhos', () => {
-    localStorage.setItem('minefruits:poderes:ana', '{quebrado');
-    expect(loadCharges('ana', 'nada')).toEqual({});
-    expect(loadCharges('ana', { flame: 3, hack: 9, ice: -2 })).toEqual({ flame: 3 });
+  it('cada jogador tem os seus poderes; ignora dados estranhos', () => {
+    saveLocalPowers('ana', ['rubber']);
+    expect(loadPowers('bia')).toEqual([]);
+    localStorage.setItem('minefruits:poderes:bia', '{quebrado');
+    expect(loadPowers('bia', 'nada')).toEqual([]);
+    expect(loadPowers('bia', ['flame', 'hack'])).toEqual(['flame']);
   });
 
   it('todo poder tem nome, recarga e descrição', () => {
