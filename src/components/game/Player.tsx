@@ -12,7 +12,7 @@ import { touchInput, isTouchDevice } from './touchInput';
 const TOUCH_LOOK_SPEED = 0.0055;
 const MAX_PITCH = Math.PI / 2 - 0.05;
 import { isTypingTarget } from './keyboard';
-import { playerPosition, playerLook, playerCommands, mobRegistry } from './playerState';
+import { playerPosition, playerLook, playerCommands, mobRegistry, handState } from './playerState';
 
 interface PlayerProps {
   world: World;
@@ -116,7 +116,7 @@ function playFootstep(ref: React.MutableRefObject<AudioContext | null>, gain: nu
   } catch { /* audio unavailable */ }
 }
 
-export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, onBlockPlace, onUseItem, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, controlsEnabled = true, respawnKey = 0, startPosition = null, aura, jumpBoost = 1, speedBoost = 1 }: PlayerProps) {
+export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, onBlockPlace, onUseItem, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, controlsEnabled = true, respawnKey = 0, startPosition = null, aura, equippedItem = null, jumpBoost = 1, speedBoost = 1 }: PlayerProps) {
   const { camera } = useThree();
   const controlsRef = useRef<React.ElementRef<typeof PointerLockControls>>(null);
   const velocity = useRef(new THREE.Vector3(0, 0, 0));
@@ -132,6 +132,8 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
   const mobsRef = useRef(mobs);
   const [thirdPerson, setThirdPerson] = useState(false);
   const thirdPersonRef = useRef(false);
+  // nova partida começa em primeira pessoa (a mão aparece)
+  useEffect(() => { handState.thirdPerson = false; }, []);
   const playerPos = useRef(new THREE.Vector3(0, 8, 0));
   const playerYaw = useRef(0);
   const isMovingRef = useRef(false);
@@ -215,6 +217,7 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
         case 'ControlLeft': case 'ControlRight': case 'KeyC': crouchRef.current = true; break;
         case 'KeyV':
           thirdPersonRef.current = !thirdPersonRef.current;
+          handState.thirdPerson = thirdPersonRef.current;
           setThirdPerson(thirdPersonRef.current);
           break;
       }
@@ -250,6 +253,7 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
   // Click (computador) ou botão de ataque (celular): atacar mobs ou quebrar blocos
   useEffect(() => {
     const attack = () => {
+      handState.swingAt = performance.now(); // braço balança (golpe ou quebrar bloco)
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
 
@@ -296,6 +300,7 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
 
     // Colocar bloco: segue a mira até achar um bloco e coloca no espaço vazio logo antes dele
     const place = () => {
+      handState.swingAt = performance.now();
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
       const origin = thirdPersonRef.current ? playerPos.current.clone() : camera.position.clone();
@@ -388,6 +393,7 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
     }
     const isMoving = moveDir.length() > 0;
     isMovingRef.current = isMoving;
+    handState.walk += ((isMoving ? 1 : 0) - handState.walk) * Math.min(1, dt * 8);
     // Teclado: sempre velocidade cheia. Joystick: anda mais devagar com o dedo perto do centro.
     if (isMoving) moveDir.multiplyScalar(1 / Math.max(1, moveDir.length()));
 
@@ -442,6 +448,7 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
     velocity.current.y -= GRAVITY * dt;
     const groundY = groundUnder(currentWorld, pos.x, feet, pos.z);
     const onGround = feet - groundY <= 0.08;
+    handState.onGround = onGround;
 
     if ((jump || (touchInput.jump && controlsEnabledRef.current)) && onGround) {
       velocity.current.y = JUMP_SPEED * jumpBoostRef.current;
@@ -568,6 +575,7 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
           isMoving={isMovingRef}
           isThirdPerson={thirdPerson}
           aura={aura}
+          heldItem={equippedItem ?? null}
         />
       )}
     </>

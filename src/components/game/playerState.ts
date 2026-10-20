@@ -36,3 +36,15 @@ let effectId = 0;
 export function addPowerEffect(kind: PowerEffect['kind'], pos: THREE.Vector3, radius: number) {
   powerEffects.push({ id: effectId++, kind, pos: pos.clone(), start: performance.now(), radius });
 }
+
+/** Estado da mão em primeira pessoa (lido pelo HeldItem a cada frame). */
+export const handState = {
+  /** Quando foi o último golpe/colocação (ms), para animar o braço. */
+  swingAt: -1e9,
+  /** Câmera em terceira pessoa: aí a mão em primeira pessoa some. */
+  thirdPerson: false,
+  /** Velocidade de andar (0..1), para a mão balançar no passo. */
+  walk: 0,
+  /** Está no chão (não balança no ar). */
+  onGround: true,
+};

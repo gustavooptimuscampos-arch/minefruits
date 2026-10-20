@@ -2,6 +2,10 @@ import { useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { SkinData } from './skins';
+import type { ItemType } from './types';
+import { ItemModel } from './ItemModel';
+import { isTool } from './itemKinds';
+import { handState } from './playerState';
 
 type ValueRef<T> = { readonly current: T };
 
@@ -13,16 +17,20 @@ interface PlayerModelProps {
   isMoving: boolean | ValueRef<boolean>;
   isThirdPerson: boolean;
   aura?: { color: string; emissive: string } | null;
+  /** Item na mão direita (aparece na terceira pessoa). */
+  heldItem?: ItemType | null;
+  /** Jogador local: o braço faz o golpe junto com o ataque. */
+  local?: boolean;
 }
 
 const read = <T,>(v: T | ValueRef<T>): T =>
   typeof v === 'object' && v !== null && 'current' in (v as object) ? (v as ValueRef<T>).current : (v as T);
 
-export function PlayerModel({ skin, position, rotation, isMoving, isThirdPerson, aura }: PlayerModelProps) {
+export function PlayerModel({ skin, position, rotation, isMoving, isThirdPerson, aura, heldItem = null, local = true }: PlayerModelProps) {
   const auraRef = useRef<THREE.Mesh>(null);
   const groupRef = useRef<THREE.Group>(null);
   const leftArmRef = useRef<THREE.Mesh>(null);
-  const rightArmRef = useRef<THREE.Mesh>(null);
+  const rightArmRef = useRef<THREE.Group>(null);
   const leftLegRef = useRef<THREE.Mesh>(null);
   const rightLegRef = useRef<THREE.Mesh>(null);
   const walkPhase = useRef(0);
@@ -48,7 +56,12 @@ export function PlayerModel({ skin, position, rotation, isMoving, isThirdPerson,
     const swing = Math.sin(walkPhase.current) * 0.6;
 
     if (leftArmRef.current) leftArmRef.current.rotation.x = swing;
-    if (rightArmRef.current) rightArmRef.current.rotation.x = -swing;
+    if (rightArmRef.current) {
+      // golpe: o braço direito sobe e desce rápido
+      const k = local ? Math.min(1, (performance.now() - handState.swingAt) / 260) : 1;
+      const hit = k < 1 ? Math.sin(k * Math.PI) * 1.4 : 0;
+      rightArmRef.current.rotation.x = -swing * (heldItem ? 0.5 : 1) - hit - (heldItem ? 0.35 : 0);
+    }
     if (leftLegRef.current) leftLegRef.current.rotation.x = -swing;
     if (rightLegRef.current) rightLegRef.current.rotation.x = swing;
   });
@@ -112,11 +125,18 @@ export function PlayerModel({ skin, position, rotation, isMoving, isThirdPerson,
         <meshStandardMaterial color={skin.arms} roughness={0.7} />
       </mesh>
 
-      {/* Right Arm */}
-      <mesh ref={rightArmRef} position={[-0.38, 0.95, 0]} castShadow>
-        <boxGeometry args={[0.22, 0.65, 0.25]} />
-        <meshStandardMaterial color={skin.arms} roughness={0.7} />
-      </mesh>
+      {/* Right Arm (gira pelo ombro, segurando o item) */}
+      <group ref={rightArmRef} position={[-0.38, 1.25, 0]}>
+        <mesh position={[0, -0.3, 0]} castShadow>
+          <boxGeometry args={[0.22, 0.65, 0.25]} />
+          <meshStandardMaterial color={skin.arms} roughness={0.7} />
+        </mesh>
+        {heldItem && (
+          <group position={[0, -0.6, -0.06]} rotation={isTool(heldItem) ? [-Math.PI / 2, 0, 0] : [-0.3, 0, 0]} scale={isTool(heldItem) ? 0.9 : 1.1}>
+            <ItemModel item={heldItem} />
+          </group>
+        )}
+      </group>
 
       {/* Left Leg */}
       <mesh ref={leftLegRef} position={[0.12, 0.35, 0]} castShadow>

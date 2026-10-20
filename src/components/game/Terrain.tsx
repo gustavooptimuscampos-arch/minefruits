@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
-import { BLOCK_COLORS, GRASS_BLOCKS } from './types';
-import { lightState } from './lightState';
+import { BLOCK_COLORS, BlockType } from './types';
 import { BLOCK_TYPES, World, WATER_ID } from './world';
 import { WATER_LEVEL } from './biomes';
+import { blockUV, getBlockAtlas, hasTexture } from './blockTextures';
 
 interface TerrainProps {
   world: World;
   /** Muda quando algum bloco muda; cada chunk só se redesenha se for o dele. */
   version: number;
+  /** Qualidade alta: o terreno projeta e recebe sombras. */
+  shadows?: boolean;
 }
 
 type Vec3 = [number, number, number];
@@ -22,33 +24,45 @@ interface FaceDef {
 }
 
 // (u, v, n) form a right-handed basis so winding is always correct
+// A luz do sol já escurece os lados; aqui fica só um pouco de sombra para os blocos não se misturarem
 const FACES: FaceDef[] = [
   { n: [0, 1, 0], u: [1, 0, 0], v: [0, 0, -1], shade: 1.0 },   // top
-  { n: [0, -1, 0], u: [1, 0, 0], v: [0, 0, 1], shade: 0.45 },  // bottom
-  { n: [1, 0, 0], u: [0, 0, -1], v: [0, 1, 0], shade: 0.78 },  // +x
-  { n: [-1, 0, 0], u: [0, 0, 1], v: [0, 1, 0], shade: 0.78 },  // -x
-  { n: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0], shade: 0.63 },   // +z
-  { n: [0, 0, -1], u: [-1, 0, 0], v: [0, 1, 0], shade: 0.63 }, // -z
+  { n: [0, -1, 0], u: [1, 0, 0], v: [0, 0, 1], shade: 0.62 },  // bottom
+  { n: [1, 0, 0], u: [0, 0, -1], v: [0, 1, 0], shade: 0.9 },   // +x
+  { n: [-1, 0, 0], u: [0, 0, 1], v: [0, 1, 0], shade: 0.9 },   // -x
+  { n: [0, 0, 1], u: [1, 0, 0], v: [0, 1, 0], shade: 0.82 },   // +z
+  { n: [0, 0, -1], u: [-1, 0, 0], v: [0, 1, 0], shade: 0.82 }, // -z
 ];
 
 const CORNERS: [number, number][] = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
 
-// Deterministic per-block tint so large surfaces are not flat
+// Variação leve de brilho por bloco (a textura já tem o detalhe)
 function tint(x: number, y: number, z: number) {
   const n = Math.sin(x * 127.1 + y * 311.7 + z * 74.7) * 43758.5453;
-  return 0.92 + (n - Math.floor(n)) * 0.16;
+  return 0.95 + (n - Math.floor(n)) * 0.1;
 }
 
 // Tabelas por id de bloco (mais rápido que comparar textos no meio do desenho)
-const TRANSPARENT_TYPES = new Set(['water', 'leaves', 'flower', 'spruce_leaves', 'jungle_leaves', 'acacia_leaves']);
+const TRANSPARENT_TYPES = new Set(['water', 'leaves', 'flower', 'spruce_leaves', 'jungle_leaves', 'acacia_leaves', 'torch']);
 const TRANSPARENT_ID: boolean[] = [false, ...BLOCK_TYPES.map(t => TRANSPARENT_TYPES.has(t))];
-const GRASS_ID: boolean[] = [false, ...BLOCK_TYPES.map(t => GRASS_BLOCKS.includes(t))];
-const COLOR_ID: THREE.Color[] = [new THREE.Color(), ...BLOCK_TYPES.map(t => new THREE.Color(BLOCK_COLORS[t] || '#808080'))];
-const DIRT = new THREE.Color(BLOCK_COLORS.dirt);
+// Com textura: o vértice fica branco (só sombra); sem textura: usa a cor do bloco
+const WHITE = new THREE.Color(1, 1, 1);
+const COLOR_ID: THREE.Color[] = [new THREE.Color(), ...BLOCK_TYPES.map(t => (hasTexture(t) ? WHITE : new THREE.Color(BLOCK_COLORS[t] || '#808080')))];
 const FLOWER_ID = BLOCK_TYPES.indexOf('flower') + 1;
 const STEM = new THREE.Color('#3f8f3a');
+const FLOWER_COLOR = new THREE.Color(BLOCK_COLORS.flower);
 
-type Bucket = { pos: number[]; col: number[]; idx: number[] };
+type Bucket = { pos: number[]; col: number[]; uv: number[]; idx: number[] };
+type UVRect = [number, number, number, number];
+const ROLE_OF_FACE: ('top' | 'bottom' | 'side')[] = ['top', 'bottom', 'side', 'side', 'side', 'side'];
+// Coordenadas de textura de cada bloco em cada face (calculadas uma vez)
+let UV_ID: UVRect[][] | null = null;
+function uvTable() {
+  if (!UV_ID) UV_ID = [[], ...BLOCK_TYPES.map(t => ROLE_OF_FACE.map(r => blockUV(t as BlockType, r)))];
+  return UV_ID;
+}
+let WHITE_UV: UVRect | null = null;
+const whiteUV = () => (WHITE_UV ??= blockUV('white', 'top'));
 
 /** Caixinha simples (sem sombra de canto), usada para desenhar flores pequenas. */
 function addBox(b: Bucket, x0: number, y0: number, z0: number, x1: number, y1: number, z1: number, color: THREE.Color, k = 1) {
@@ -64,6 +78,8 @@ function addBox(b: Bucket, x0: number, y0: number, z0: number, x1: number, y1: n
     const start = b.pos.length / 3;
     b.pos.push(...v);
     for (let i = 0; i < 4; i++) b.col.push(color.r * shade * k, color.g * shade * k, color.b * shade * k);
+    const [u0, v0] = whiteUV();
+    for (let i = 0; i < 4; i++) b.uv.push(u0 + 0.001, v0 + 0.001);
     // Garante que a face aponta para fora da caixa (senão ela some)
     const ux = v[3] - v[0], uy = v[4] - v[1], uz = v[5] - v[2];
     const wx = v[6] - v[0], wy = v[7] - v[1], wz = v[8] - v[2];
@@ -75,11 +91,12 @@ function addBox(b: Bucket, x0: number, y0: number, z0: number, x1: number, y1: n
 }
 
 function buildChunk(world: World, cx: number, cz: number) {
-  const opaque = { pos: [] as number[], col: [] as number[], idx: [] as number[] };
-  const leafy = { pos: [] as number[], col: [] as number[], idx: [] as number[] };
+  const opaque: Bucket = { pos: [], col: [], uv: [], idx: [] };
+  const leafy: Bucket = { pos: [], col: [], uv: [], idx: [] };
   const water: number[] = [];
-  const waterCol: number[] = [];
+  const waterUv: number[] = [];
   const waterIdx: number[] = [];
+  const UVS = uvTable();
   const color = new THREE.Color();
 
   const solidAt = (x: number, y: number, z: number) => {
@@ -103,7 +120,8 @@ function buildChunk(world: World, cx: number, cz: number) {
           const base = water.length / 3;
           const h = 0.86;
           water.push(x, y + h, z, x + 1, y + h, z, x + 1, y + h, z + 1, x, y + h, z + 1);
-          for (let i = 0; i < 4; i++) waterCol.push(0.16, 0.45, 0.78);
+          // textura das ondas presa ao mundo: emenda perfeita entre os blocos de água
+          waterUv.push(x / 6, z / 6, (x + 1) / 6, z / 6, (x + 1) / 6, (z + 1) / 6, x / 6, (z + 1) / 6);
           waterIdx.push(base, base + 2, base + 1, base, base + 3, base + 2);
           continue;
         }
@@ -111,7 +129,7 @@ function buildChunk(world: World, cx: number, cz: number) {
         // Flor: um caule e uma florzinha, em vez de um cubo inteiro rosa
         if (id === FLOWER_ID) {
           addBox(leafy, x + 0.46, y, z + 0.46, x + 0.54, y + 0.45, z + 0.54, STEM);
-          addBox(leafy, x + 0.34, y + 0.4, z + 0.34, x + 0.66, y + 0.66, z + 0.66, COLOR_ID[id], tint(x, y, z));
+          addBox(leafy, x + 0.34, y + 0.4, z + 0.34, x + 0.66, y + 0.66, z + 0.66, FLOWER_COLOR, tint(x, y, z));
           continue;
         }
 
@@ -122,7 +140,8 @@ function buildChunk(world: World, cx: number, cz: number) {
         const depth = surface - 1 - y;
         const dark = depth > 4 ? Math.max(0.42, 1 - (depth - 4) / 26) : 1;
 
-        for (const face of FACES) {
+        for (let f = 0; f < 6; f++) {
+          const face = FACES[f];
           const nx = x + face.n[0], ny = y + face.n[1], nz = z + face.n[2];
           if (ny < 0) continue; // fundo do mundo nunca aparece
           const nid = world.getId(nx, ny, nz);
@@ -130,10 +149,9 @@ function buildChunk(world: World, cx: number, cz: number) {
           if (nid && !TRANSPARENT_ID[nid]) continue;
           if (nid && transparent && nid === id) continue;
 
-          // grass blocks fade to dirt on their sides
+          // A textura já tem a cor (grama com lado de terra, minério, madeira...)
           color.copy(COLOR_ID[id]);
-          if (GRASS_ID[id] && face.n[1] === 0) color.lerp(DIRT, 0.45);
-          if (GRASS_ID[id] && face.n[1] === -1) color.copy(DIRT);
+          const [u0, v0, u1, v1] = UVS[id][f];
 
           const start = bucket.pos.length / 3;
           const aos: number[] = [];
@@ -143,6 +161,7 @@ function buildChunk(world: World, cx: number, cz: number) {
             const py = y + 0.5 + face.n[1] * 0.5 + (face.u[1] * du + face.v[1] * dv) * 0.5;
             const pz = z + 0.5 + face.n[2] * 0.5 + (face.u[2] * du + face.v[2] * dv) * 0.5;
             bucket.pos.push(px, py, pz);
+            bucket.uv.push(du < 0 ? u0 : u1, dv < 0 ? v0 : v1);
 
             // classic voxel ambient occlusion
             const s1 = solidAt(nx + face.u[0] * du, ny + face.u[1] * du, nz + face.u[2] * du);
@@ -171,57 +190,94 @@ function buildChunk(world: World, cx: number, cz: number) {
     }
   }
 
-  const toGeo = (pos: number[], col: number[], idx: number[]) => {
+  const toGeo = (pos: number[], idx: number[], uv: number[], col?: number[]) => {
     if (!pos.length) return null;
     const geo = new THREE.BufferGeometry();
     geo.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-    geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    if (col) geo.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
     geo.setIndex(idx);
+    geo.computeVertexNormals(); // a luz do sol precisa saber para onde cada face aponta
     geo.computeBoundingSphere();
     return geo;
   };
 
   return {
-    opaque: toGeo(opaque.pos, opaque.col, opaque.idx),
-    leafy: toGeo(leafy.pos, leafy.col, leafy.idx),
-    water: toGeo(water, waterCol, waterIdx),
+    opaque: toGeo(opaque.pos, opaque.idx, opaque.uv, opaque.col),
+    leafy: toGeo(leafy.pos, leafy.idx, leafy.uv, leafy.col),
+    water: toGeo(water, waterIdx, waterUv),
   };
 }
 
-function Water({ geometry }: { geometry: THREE.BufferGeometry }) {
-  const ref = useRef<THREE.Mesh>(null);
-  useFrame((state) => {
-    if (!ref.current) return;
-    const t = state.clock.elapsedTime;
-    ref.current.position.y = Math.sin(t * 1.2) * 0.05;
-  });
-  return (
-    <mesh ref={ref} geometry={geometry} renderOrder={2}>
-      <meshBasicMaterial vertexColors transparent opacity={0.72} depthWrite={false} side={THREE.DoubleSide} />
-    </mesh>
-  );
+/** Mapa de ondinhas (normal map) que se repete sem emenda: dá o brilho do sol na água. */
+let waterNormals: THREE.CanvasTexture | null = null;
+function getWaterNormals() {
+  if (waterNormals) return waterNormals;
+  const N = 128;
+  const c = document.createElement('canvas');
+  c.width = c.height = N;
+  const ctx = c.getContext('2d')!;
+  const img = ctx.createImageData(N, N);
+  const waves: [number, number, number, number][] = [[2, 1, 0.9, 0.3], [-1, 3, 0.6, 1.7], [4, -2, 0.35, 2.9], [3, 5, 0.25, 4.1], [-6, 1, 0.18, 0.8]];
+  const h = (x: number, y: number) => waves.reduce((s, [kx, ky, a, p]) => s + a * Math.sin((2 * Math.PI * (kx * x + ky * y)) / N + p), 0);
+  for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {
+    const dx = h(x + 1, y) - h(x - 1, y), dy = h(x, y + 1) - h(x, y - 1);
+    const len = Math.hypot(dx, dy, 2.2);
+    const o = (y * N + x) * 4;
+    img.data[o] = ((-dx / len) * 0.5 + 0.5) * 255;
+    img.data[o + 1] = ((-dy / len) * 0.5 + 0.5) * 255;
+    img.data[o + 2] = (2.2 / len) * 255;
+    img.data[o + 3] = 255;
+  }
+  ctx.putImageData(img, 0, 0);
+  waterNormals = new THREE.CanvasTexture(c);
+  waterNormals.wrapS = waterNormals.wrapT = THREE.RepeatWrapping;
+  return waterNormals;
 }
 
-function ChunkMesh({ geometry, transparent }: { geometry: THREE.BufferGeometry; transparent: boolean }) {
-  const matRef = useRef<THREE.MeshBasicMaterial>(null);
-  useFrame(() => {
-    if (matRef.current) matRef.current.color.copy(lightState.tint);
+// Materiais compartilhados por todos os chunks (um só de cada: mais leve)
+let materials: { opaque: THREE.MeshLambertMaterial; leafy: THREE.MeshLambertMaterial; water: THREE.MeshStandardMaterial } | null = null;
+function getMaterials() {
+  if (materials) return materials;
+  const { texture, glow } = getBlockAtlas();
+  const base = { map: texture, vertexColors: true, emissiveMap: glow, emissive: new THREE.Color(1, 1, 1) };
+  materials = {
+    opaque: new THREE.MeshLambertMaterial(base),
+    // folhas e tocha: os pixels transparentes da textura viram buraquinhos
+    leafy: new THREE.MeshLambertMaterial({ ...base, alphaTest: 0.5, side: THREE.DoubleSide }),
+    water: new THREE.MeshStandardMaterial({
+      color: '#2d74b5', transparent: true, opacity: 0.78, roughness: 0.12, metalness: 0.05,
+      normalMap: getWaterNormals(), normalScale: new THREE.Vector2(0.55, 0.55), depthWrite: false, side: THREE.DoubleSide,
+    }),
+  };
+  return materials;
+}
+
+/** Faz as ondas andarem (uma vez por quadro, para todos os chunks). */
+function WaterAnimator() {
+  useFrame((state) => {
+    const t = state.clock.elapsedTime;
+    const n = getWaterNormals();
+    n.offset.set(t * 0.035, t * 0.02);
   });
-  return (
-    <mesh geometry={geometry}>
-      <meshBasicMaterial
-        ref={matRef}
-        vertexColors
-        transparent={transparent}
-        opacity={transparent ? 0.95 : 1}
-        alphaTest={transparent ? 0.1 : 0}
-      />
-    </mesh>
-  );
+  return null;
+}
+
+function Water({ geometry, shadows }: { geometry: THREE.BufferGeometry; shadows: boolean }) {
+  const ref = useRef<THREE.Mesh>(null);
+  useFrame((state) => {
+    if (ref.current) ref.current.position.y = Math.sin(state.clock.elapsedTime * 1.2) * 0.04;
+  });
+  return <mesh ref={ref} geometry={geometry} material={getMaterials().water} renderOrder={2} receiveShadow={shadows} userData={{ terrain: true }} />;
+}
+
+function ChunkMesh({ geometry, transparent, shadows }: { geometry: THREE.BufferGeometry; transparent: boolean; shadows: boolean }) {
+  const m = getMaterials();
+  return <mesh geometry={geometry} material={transparent ? m.leafy : m.opaque} castShadow={shadows} receiveShadow={shadows} userData={{ terrain: true }} />;
 }
 
 /** Um pedaço 16x16 do mapa. Só é redesenhado quando um bloco dele muda. */
-function Chunk({ world, cx, cz, version }: { world: World; cx: number; cz: number; version: number }) {
+function Chunk({ world, cx, cz, version, shadows }: { world: World; cx: number; cz: number; version: number; shadows: boolean }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- "version" é o que avisa que o chunk mudou
   const geos = useMemo(() => buildChunk(world, cx, cz), [world, cx, cz, version]);
   useEffect(() => () => {
@@ -231,22 +287,23 @@ function Chunk({ world, cx, cz, version }: { world: World; cx: number; cz: numbe
   }, [geos]);
   return (
     <>
-      {geos.opaque && <ChunkMesh geometry={geos.opaque} transparent={false} />}
-      {geos.leafy && <ChunkMesh geometry={geos.leafy} transparent />}
-      {geos.water && <Water geometry={geos.water} />}
+      {geos.opaque && <ChunkMesh geometry={geos.opaque} transparent={false} shadows={shadows} />}
+      {geos.leafy && <ChunkMesh geometry={geos.leafy} transparent shadows={shadows} />}
+      {geos.water && <Water geometry={geos.water} shadows={shadows} />}
     </>
   );
 }
 
 /** Recebe "version" só para redesenhar quando algo muda; cada Chunk confere a sua. */
-export function Terrain({ world }: TerrainProps) {
+export function Terrain({ world, shadows = false }: TerrainProps) {
   const chunks: [number, number][] = [];
   for (let cx = 0; cx < world.chunksPerSide; cx++) for (let cz = 0; cz < world.chunksPerSide; cz++) chunks.push([cx, cz]);
   return (
     <>
       {chunks.map(([cx, cz]) => (
-        <Chunk key={`${cx},${cz}`} world={world} cx={cx} cz={cz} version={world.chunkVersion(cx, cz)} />
+        <Chunk key={`${cx},${cz}`} world={world} cx={cx} cz={cz} version={world.chunkVersion(cx, cz)} shadows={shadows} />
       ))}
+      <WaterAnimator />
     </>
   );
 }

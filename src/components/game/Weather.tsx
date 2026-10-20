@@ -13,21 +13,26 @@ export function Weather() {
   const matRef = useRef<THREE.PointsMaterial>(null);
   const wetness = useRef(0);
 
+  // Nuvens em blocos, bem acima das montanhas (antes ficavam dentro delas), todas na mesma altura
+  const CLOUD_Y = 84;
+  const CLOUD_SPAN = 320;
   const clouds = useMemo(() => {
-    const list: { pos: [number, number, number]; scale: [number, number, number]; speed: number }[] = [];
-    for (let i = 0; i < 26; i++) {
-      list.push({
-        pos: [
-          (Math.random() - 0.5) * 220,
-          38 + Math.random() * 18,
-          (Math.random() - 0.5) * 220,
-        ],
-        scale: [10 + Math.random() * 22, 2 + Math.random() * 2.5, 8 + Math.random() * 16],
-        speed: 0.4 + Math.random() * 0.6,
-      });
+    const list: { pos: [number, number, number]; scale: [number, number, number] }[] = [];
+    for (let i = 0; i < 34; i++) {
+      const cx = (Math.random() - 0.5) * CLOUD_SPAN, cz = (Math.random() - 0.5) * CLOUD_SPAN;
+      // cada nuvem é feita de alguns blocões grudados
+      const parts = 2 + Math.floor(Math.random() * 4);
+      for (let j = 0; j < parts; j++) {
+        list.push({
+          pos: [cx + Math.round((Math.random() - 0.5) * 3) * 8, CLOUD_Y, cz + Math.round((Math.random() - 0.5) * 3) * 8],
+          scale: [8 * (1 + Math.floor(Math.random() * 2)), 4, 8 * (1 + Math.floor(Math.random() * 2))],
+        });
+      }
     }
     return list;
   }, []);
+  const cloudMat = useMemo(() => new THREE.MeshLambertMaterial({ color: '#ffffff', emissive: new THREE.Color('#9aa6b8'), transparent: true, opacity: 0.88, depthWrite: false }), []);
+  const cloudGeo = useMemo(() => new THREE.BoxGeometry(1, 1, 1), []);
 
   const rainGeo = useMemo(() => {
     const geo = new THREE.BufferGeometry();
@@ -46,12 +51,20 @@ export function Weather() {
     const t = state.clock.elapsedTime;
 
     if (cloudsRef.current) {
-      cloudsRef.current.children.forEach((child, i) => {
-        child.position.x += clouds[i].speed * dt;
-        if (child.position.x > 120) child.position.x = -120;
-        const mat = (child as THREE.Mesh).material as THREE.MeshBasicMaterial;
-        mat.color.copy(lightState.tint).multiplyScalar(0.98);
+      // O vento leva as nuvens; elas dão a volta em torno do jogador
+      const cam = state.camera.position;
+      const half = CLOUD_SPAN / 2;
+      cloudsRef.current.children.forEach(child => {
+        child.position.x += 1.2 * dt;
+        if (child.position.x - cam.x > half) child.position.x -= CLOUD_SPAN;
+        if (child.position.x - cam.x < -half) child.position.x += CLOUD_SPAN;
+        if (child.position.z - cam.z > half) child.position.z -= CLOUD_SPAN;
+        if (child.position.z - cam.z < -half) child.position.z += CLOUD_SPAN;
       });
+      // de noite as nuvens não brilham
+      cloudMat.emissive.setRGB(0.6, 0.65, 0.72).multiplyScalar(0.15 + lightState.dayFactor * 0.5);
+      // chuva: nuvens mais escuras
+      cloudMat.color.setScalar(1 - wetness.current * 0.45);
     }
 
     // Rain comes and goes on a slow cycle
@@ -64,7 +77,8 @@ export function Weather() {
       matRef.current.opacity = wetness.current * 0.5;
       if (visible) {
         const cam = state.camera.position;
-        rainRef.current.position.set(cam.x, 0, cam.z);
+        // a chuva cai em volta do jogador, na altura dele (antes caía embaixo do chão)
+        rainRef.current.position.set(cam.x, cam.y - 18, cam.z);
         const pos = rainGeo.attributes.position as THREE.BufferAttribute;
         for (let i = 0; i < RAIN_COUNT; i++) {
           let y = pos.getY(i) - 34 * dt;
@@ -80,10 +94,7 @@ export function Weather() {
     <>
       <group ref={cloudsRef}>
         {clouds.map((c, i) => (
-          <mesh key={i} position={c.pos} scale={c.scale}>
-            <boxGeometry args={[1, 1, 1]} />
-            <meshBasicMaterial color="#ffffff" transparent opacity={0.55} depthWrite={false} />
-          </mesh>
+          <mesh key={i} position={c.pos} scale={c.scale} geometry={cloudGeo} material={cloudMat} />
         ))}
       </group>
 

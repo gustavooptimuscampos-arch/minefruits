@@ -7,6 +7,9 @@ import { Fruits } from './Fruits';
 import { MobsRenderer } from './MobsRenderer';
 import { Dog } from './Dog';
 import { DayNightCycle } from './DayNightCycle';
+import { ShadowFlags } from './ShadowFlags';
+import { HeldItem } from './HeldItem';
+import { GraphicsQuality, loadQuality, saveQuality } from './graphics';
 import { Weather } from './Weather';
 import { RemotePlayersRenderer } from './RemotePlayersRenderer';
 import { GameHUD } from './GameHUD';
@@ -111,6 +114,9 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
   // Cada poder tem a sua recarga (antes era uma só: depois do Gelo a Luz ficava 8 s sem funcionar)
   const [powerReadyMap, setPowerReadyMap] = useState<Record<string, number>>({});
   const [now, setNow] = useState(() => performance.now());
+  // Gráficos: alta (sombras, reflexos) ou baixa (celular)
+  const [quality, setQuality] = useState<GraphicsQuality>(() => loadQuality());
+  const hiQ = quality === 'alta';
 
   const inventory = useInventory(ws?.inventory);
   const { craftingOpen, setCraftingOpen, setSelectedSlot, equippedItem, collectBlock, addItem, removeItem, items: inventoryItems } = inventory;
@@ -708,11 +714,11 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
   return (
     <div id="game-canvas" className="relative w-full h-[100dvh] overflow-hidden touch-none select-none" style={{ background: '#87CEEB', overscrollBehavior: 'none' }}>
       <Canvas
-        shadows={false}
+        shadows={hiQ ? 'soft' : false}
         camera={{ fov: 70, near: 0.1, far: 250, position: [0, 20, 0] }}
         style={{ background: '#87CEEB' }}
         gl={{ antialias: true, powerPreference: 'high-performance' }}
-        dpr={[1, 1.5]}
+        dpr={hiQ ? [1, 1.5] : [0.75, 1]}
         onCreated={({ scene, gl }) => {
           scene.background = new THREE.Color('#7ec0ee');
           scene.fog = new THREE.Fog('#7ec0ee', 60, 170);
@@ -720,9 +726,10 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
           gl.toneMappingExposure = 1.05;
         }}
       >
-        <DayNightCycle onTimeChange={handleTimeChange} speed={0.000556} initialTime={ws?.time} />
+        <DayNightCycle onTimeChange={handleTimeChange} speed={0.000556} initialTime={ws?.time} shadows={hiQ} />
         <Weather />
-        <Terrain world={world} version={worldVersion} />
+        <Terrain world={world} version={worldVersion} shadows={hiQ} />
+        <ShadowFlags enabled={hiQ} />
         <Fruits fruits={fruits} lockedIds={lockedFruitIds} />
         <PowerEffects />
         <CoinsRenderer coins={coins} />
@@ -740,6 +747,8 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
           jumpBoost={powers.includes('rubber') ? 1.6 : 1} speedBoost={powers.includes('light') ? 1.25 : 1}
         />
         {isMultiplayer && <RemotePlayersRenderer players={mp.remotePlayers} />}
+        {/* o que o jogador segura, na frente da câmera */}
+        {!dead && <HeldItem item={equippedItem ?? null} armColor={effectiveSkin.arms} />}
       </Canvas>
 
       {/* No celular, "Sair" abre a pausa (com Continuar / Sair), igual ao ESC no computador */}
@@ -869,6 +878,12 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
                 autoFocus
               >
                 ▶ Continuar
+              </button>
+              <button
+                onClick={() => { const next = hiQ ? 'baixa' : 'alta'; setQuality(next); saveQuality(next); }}
+                className="font-pixel text-[10px] px-4 py-2 bg-muted text-foreground rounded-lg hover:bg-muted/80"
+              >
+                🎨 Gráficos: {hiQ ? 'ALTA (sombras e reflexos)' : 'BAIXA (mais leve)'}
               </button>
               <button
                 onClick={() => { saveNowRef.current(true); onExit?.(); }}

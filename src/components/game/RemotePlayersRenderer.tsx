@@ -39,6 +39,7 @@ function RemotePlayerMesh({ player }: { player: RemotePlayer }) {
         rotation={player.rotation}
         isMoving={player.isMoving}
         isThirdPerson={true}
+        local={false}
       />
       {/* Name tag */}
       <group position={[posRef.current.x, posRef.current.y + 0.5, posRef.current.z]}>
