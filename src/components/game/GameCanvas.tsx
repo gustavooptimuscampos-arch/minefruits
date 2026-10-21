@@ -99,6 +99,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
   const [chatOpen, setChatOpen] = useState(false);
   const [paused, setPaused] = useState(false);
   const [dead, setDead] = useState(false);
+  const [deathCause, setDeathCause] = useState<string | null>(null);
   // Cama: ponto de renascer e dormir à noite
   const [bed, setBed] = useState<{ block: [number, number, number]; spawn: [number, number, number] } | null>(() => ws?.bed ?? null);
   const [sleeping, setSleeping] = useState(false);
@@ -228,6 +229,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
       setHunger(h => Math.max(h, 80));
       setRespawnKey(k => k + 1);
       setDead(false);
+      setDeathCause(null);
     }, 1500);
   }, [playerHealth, releasePointer, setCraftingOpen]);
 
@@ -719,6 +721,13 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
     };
   }, []);
 
+  /** Caiu no vazio: morre na hora e renasce lá em cima. */
+  const handleFallVoid = useCallback(() => {
+    if (deadRef.current) return;
+    setDeathCause('Você caiu no vazio!');
+    setPlayerHealth(0);
+  }, []);
+
   // ---------- Cama ----------
   const isNightRef = useRef(isNight);
   isNightRef.current = isNight;
@@ -787,6 +796,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
           world={world} fruits={fruits} mobs={mobs} coins={coins} skin={effectiveSkin}
           onBlockBreak={handleBlockBreak} onBlockPlace={handleBlockPlace}
           onBlockUse={handleBlockUse} respawnPoint={bedOk ? bed!.spawn : null}
+          onFallVoid={handleFallVoid}
           onUseItem={equippedItem && FOOD_VALUES[equippedItem] ? () => eat(equippedItem) : undefined}
           onFruitCollect={handleFruitCollect} onCoinCollect={handleCoinCollect}
           onMobHit={handlePlayerAttack} sendPosition={isMultiplayer ? mp.sendPosition : undefined}
@@ -804,6 +814,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
       {isTouchDevice && !dead && <TouchControls onExit={() => setPaused(true)} onPower={() => usePowerRef.current()} />}
 
       <GameHUD
+        deathCause={deathCause}
         score={score} collectedFruits={collectedFruits} blocksDestroyed={blocksDestroyed}
         playerHealth={playerHealth} hunger={hunger} isNight={isNight} mobsKilled={mobsKilled} foodCount={foodCount}
         roomCode={multiplayer?.roomCode}

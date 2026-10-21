@@ -27,6 +27,8 @@ interface PlayerProps {
   onBlockUse?: (x: number, y: number, z: number, type: string) => boolean;
   /** Onde renascer depois de morrer (ao lado da cama). Sem cama: o começo do mapa. */
   respawnPoint?: [number, number, number] | null;
+  /** Caiu no vazio (fora do mapa): o jogo mata o jogador e ele renasce lá em cima. */
+  onFallVoid?: () => void;
   onUseItem?: () => void;
   onFruitCollect: (id: string) => void;
   onCoinCollect?: (id: string) => void;
@@ -120,7 +122,7 @@ function playFootstep(ref: React.MutableRefObject<AudioContext | null>, gain: nu
   } catch { /* audio unavailable */ }
 }
 
-export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, onBlockPlace, onBlockUse, respawnPoint = null, onUseItem, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, controlsEnabled = true, respawnKey = 0, startPosition = null, aura, equippedItem = null, jumpBoost = 1, speedBoost = 1 }: PlayerProps) {
+export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, onBlockPlace, onBlockUse, respawnPoint = null, onFallVoid, onUseItem, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, controlsEnabled = true, respawnKey = 0, startPosition = null, aura, equippedItem = null, jumpBoost = 1, speedBoost = 1 }: PlayerProps) {
   const { camera } = useThree();
   const controlsRef = useRef<React.ElementRef<typeof PointerLockControls>>(null);
   const velocity = useRef(new THREE.Vector3(0, 0, 0));
@@ -135,6 +137,9 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
   blockUseRef.current = onBlockUse;
   const respawnRef = useRef(respawnPoint);
   respawnRef.current = respawnPoint;
+  const fallVoidRef = useRef(onFallVoid);
+  fallVoidRef.current = onFallVoid;
+  const fellRef = useRef(false);
   const placeActionRef = useRef<() => void>(() => {});
   const fruitsRef = useRef(fruits);
   const mobsRef = useRef(mobs);
@@ -196,6 +201,7 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
     }
     camera.position.set(sx, spawnY, sz);
     playerPos.current.set(sx, spawnY, sz);
+    fellRef.current = false;
     velocity.current.set(0, 0, 0);
     horizVel.current.set(0, 0, 0);
     // Ordem YXZ (giro → inclinação → rolagem): mexer só no "z" nunca vira a câmera de ponta-cabeça
@@ -326,7 +332,7 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
       }
     };
     // Botão direito: usar a cama (se estiver mirando nela), senão comer ou colocar bloco
-    const useBlock = (): boolean => {
+    const tryUseBlock = (): boolean => {
       const dir = new THREE.Vector3();
       camera.getWorldDirection(dir);
       const origin = thirdPersonRef.current ? playerPos.current.clone() : camera.position.clone();
@@ -344,7 +350,7 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
       return false;
     };
     const rightAction = () => {
-      if (useBlock()) return;
+      if (tryUseBlock()) return;
       if (useItemRef.current) useItemRef.current();
       else place();
     };
@@ -496,10 +502,20 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
     }
     pos.y = newFeet + PLAYER_HEIGHT;
 
-    if (playerPos.current.y < -5) {
-      const safeSpawn = findSafeSpawn(currentWorld);
-      const respawnY = safeSpawn.groundY + PLAYER_HEIGHT + 2;
-      playerPos.current.set(safeSpawn.x, respawnY, safeSpawn.z);
+    // Caiu no vazio: morre (uma vez) e renasce lá em cima (na cama ou no começo do mapa)
+    if (playerPos.current.y < -12 && !fellRef.current) {
+      fellRef.current = true;
+      if (fallVoidRef.current) fallVoidRef.current();
+      else {
+        const safeSpawn = findSafeSpawn(currentWorld);
+        playerPos.current.set(safeSpawn.x, safeSpawn.groundY + PLAYER_HEIGHT + 2, safeSpawn.z);
+        velocity.current.set(0, 0, 0);
+        fellRef.current = false;
+      }
+    }
+    // enquanto a tela de morte aparece, não continua caindo para sempre
+    if (fellRef.current && playerPos.current.y < -40) {
+      playerPos.current.y = -40;
       velocity.current.set(0, 0, 0);
     }
 

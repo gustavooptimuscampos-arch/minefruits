@@ -25,6 +25,8 @@ interface GameHUDProps {
   locked?: boolean;
   /** Total de frutas do mapa (antes o HUD mostrava "/10" fixo). */
   totalFruits?: number;
+  /** Por que morreu (ex.: caiu no vazio). */
+  deathCause?: string | null;
   /** Nome do bioma onde o jogador está (ex.: "🏜️ Deserto"). */
   biome?: string;
   /** Poder da fruta atual e quanto falta para usar de novo. */
@@ -38,7 +40,7 @@ interface GameHUDProps {
   onPause?: () => void;
 }
 
-export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth, hunger, foodCount = 0, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false, totalFruits, biome, power, powers = [], onSelectPower, guardiansLeft, onPause }: GameHUDProps) {
+export function GameHUD({ deathCause = null, score, collectedFruits, blocksDestroyed, playerHealth, hunger, foodCount = 0, isNight, mobsKilled, roomCode, playersOnline, inventory, voxelCoins = 0, locked = false, totalFruits, biome, power, powers = [], onSelectPower, guardiansLeft, onPause }: GameHUDProps) {
   return (
     <div className="absolute inset-0 pointer-events-none select-none" style={{ zIndex: 10 }}>
       {/* Crosshair */}
@@ -211,7 +213,8 @@ export function GameHUD({ score, collectedFruits, blocksDestroyed, playerHealth,
         <div className="absolute inset-0 flex items-center justify-center bg-destructive/20">
           <div className="text-center">
             <p className="font-pixel text-red-400 text-2xl mb-2">VOCÊ MORREU!</p>
-            <p className="font-game text-muted-foreground text-sm">Renascendo...</p>
+            {deathCause && <p className="font-game text-foreground text-base mb-1">🕳️ {deathCause}</p>}
+            <p className="font-game text-muted-foreground text-sm">Renascendo lá em cima...</p>
           </div>
         </div>
       )}
