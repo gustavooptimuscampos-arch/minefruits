@@ -94,8 +94,14 @@ function bodyBlocked(world: World, x: number, feet: number, z: number): boolean 
 
 /** Altura do chão logo abaixo dos pés (o maior entre os 4 cantos do corpo). */
 function groundUnder(world: World, x: number, feet: number, z: number): number {
-  let g = 0;
-  for (const [ox, oz] of CORNER_OFFSETS) g = Math.max(g, world.floorBelow(x + ox, feet + 0.05, z + oz));
+  // Fora do mapa não tem chão nenhum: o jogador cai no vazio
+  // (antes contava um chão invisível na altura 0 e ele ficava parado lá embaixo)
+  let g = -Infinity;
+  for (const [ox, oz] of CORNER_OFFSETS) {
+    const cx = x + ox, cz = z + oz;
+    if (!world.inBounds(Math.floor(cx), 0, Math.floor(cz))) continue;
+    g = Math.max(g, world.floorBelow(cx, feet + 0.05, cz));
+  }
   return g;
 }
 
