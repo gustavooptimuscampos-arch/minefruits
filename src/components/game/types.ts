@@ -6,7 +6,8 @@ export type BlockType =
   // Blocos dos biomas
   | 'dry_grass' | 'jungle_grass' | 'swamp_grass' | 'sandstone' | 'cactus' | 'ice'
   | 'birch_wood' | 'spruce_leaves' | 'jungle_leaves' | 'acacia_leaves'
-  | 'bedrock';
+  | 'bedrock'
+  | 'bed';
 
 export type FruitType = 'flame' | 'ice' | 'light' | 'dark' | 'rubber';
 
@@ -22,7 +23,9 @@ export type ItemType =
   | 'dirt' | 'sand' | 'sandstone' | 'snow' | 'leaves' | 'cactus' | 'ice' | 'flower'
   | 'glowstone' | 'netherrack' | 'nether_brick'
   // Comida que os animais deixam
-  | 'beef' | 'porkchop' | 'chicken_meat' | 'mutton';
+  | 'beef' | 'porkchop' | 'chicken_meat' | 'mutton'
+  // Cama (lã das ovelhas + tábuas)
+  | 'wool' | 'bed';
 
 export interface Item {
   type: ItemType;
@@ -83,6 +86,7 @@ export const BLOCK_COLORS: Record<BlockType, string> = {
   jungle_leaves: '#2C9E32',
   acacia_leaves: '#7DA236',
   bedrock: '#3A3A3A',
+  bed: '#b83a32',
 };
 
 /** Blocos que não quebram (o fundo do mundo). */
@@ -104,7 +108,7 @@ export const BLOCK_DROPS: Partial<Record<BlockType, ItemType>> = {
   coal_ore: 'coal', iron_ore: 'iron_ingot', copper_ore: 'copper_ingot', gold_ore: 'gold_ingot',
   lapis_ore: 'lapis', diamond_ore: 'diamond', obsidian: 'obsidian',
   netherrack: 'netherrack', nether_brick: 'nether_brick', netherite_ore: 'diamond', glowstone: 'glowstone',
-  torch: 'torch', door: 'door', crafting_table: 'crafting_table',
+  torch: 'torch', door: 'door', crafting_table: 'crafting_table', bed: 'bed',
 };
 
 export const ITEM_CONFIG: Record<ItemType, { label: string; emoji: string; color: string }> = {
@@ -152,6 +156,8 @@ export const ITEM_CONFIG: Record<ItemType, { label: string; emoji: string; color
   porkchop: { label: 'Carne de Porco', emoji: '🍖', color: '#e08a7a' },
   chicken_meat: { label: 'Frango', emoji: '🍗', color: '#f2c8a0' },
   mutton: { label: 'Carne de Ovelha', emoji: '🍖', color: '#c9705a' },
+  wool: { label: 'Lã', emoji: '🧶', color: '#eeeeea' },
+  bed: { label: 'Cama', emoji: '🛏️', color: '#b83a32' },
 };
 
 /** Quanto cada comida enche a barra de fome. */
@@ -169,6 +175,7 @@ export const CRAFT_RECIPES: CraftRecipe[] = [
   { result: 'crafting_table', resultCount: 1, ingredients: { planks: 4 }, label: 'Mesa de Craft', category: 'block' },
   { result: 'torch', resultCount: 4, ingredients: { stick: 1, coal: 1 }, label: 'Tochas', category: 'misc' },
   { result: 'door', resultCount: 1, ingredients: { planks: 6 }, label: 'Porta', category: 'block' },
+  { result: 'bed', resultCount: 1, ingredients: { wool: 3, planks: 3 }, label: 'Cama', category: 'block' },
 
   // Wood tools
   { result: 'wood_sword', resultCount: 1, ingredients: { planks: 2, stick: 1 }, label: 'Espada de Madeira', category: 'weapon' },
@@ -283,5 +290,5 @@ export const PLACEABLE: Partial<Record<ItemType, BlockType>> = {
   cobblestone: 'cobblestone', stone: 'stone', planks: 'planks', wood: 'wood',
   leaves: 'leaves', cactus: 'cactus', flower: 'flower', obsidian: 'obsidian',
   glowstone: 'glowstone', netherrack: 'netherrack', nether_brick: 'nether_brick',
-  torch: 'torch', door: 'door', crafting_table: 'crafting_table',
+  torch: 'torch', door: 'door', crafting_table: 'crafting_table', bed: 'bed',
 };

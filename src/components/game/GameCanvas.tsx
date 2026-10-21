@@ -16,7 +16,7 @@ import { GameHUD } from './GameHUD';
 import { CraftingUI } from './CraftingUI';
 import { GameChat, ChatMessage } from './GameChat';
 import { FruitType, FOOD_VALUES, ItemType, PLACEABLE, MINING_REQUIREMENTS, BLOCK_DROPS, UNBREAKABLE, TOOL_DAMAGE, ITEM_CONFIG, AccessoryType, SHOP_ITEMS, FRUIT_CONFIG, Fruit, GameCoin } from './types';
-import { MobData, MOB_CONFIG, spawnMobs, spawnGuardians, ANIMAL_FOOD } from './mobs';
+import { MobData, MOB_CONFIG, spawnMobs, spawnGuardians, ANIMAL_FOOD, ANIMAL_EXTRA_DROPS } from './mobs';
 import { SkinData } from './skins';
 import { useMultiplayer } from './useMultiplayer';
 import { useInventory } from './useInventory';
@@ -99,6 +99,9 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
   const [chatOpen, setChatOpen] = useState(false);
   const [paused, setPaused] = useState(false);
   const [dead, setDead] = useState(false);
+  // Cama: ponto de renascer e dormir à noite
+  const [bed, setBed] = useState<{ block: [number, number, number]; spawn: [number, number, number] } | null>(() => ws?.bed ?? null);
+  const [sleeping, setSleeping] = useState(false);
   const [respawnKey, setRespawnKey] = useState(0);
   const [notice, setNotice] = useState<string | null>(null);
   const [biome, setBiome] = useState<BiomeId>('plains');
@@ -459,7 +462,16 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
       const [item, min, max] = food;
       const amount = min + Math.floor(Math.random() * (max - min + 1));
       addItem(item, amount);
-      showNotice(`+${amount} ${ITEM_CONFIG[item].emoji} ${ITEM_CONFIG[item].label} — aperte G para comer`);
+      const extra = ANIMAL_EXTRA_DROPS[mob.type];
+      let extraText = '';
+      if (extra) {
+        // a ovelha também dá lã (para fazer a cama)
+        const [eItem, eMin, eMax] = extra;
+        const eAmount = eMin + Math.floor(Math.random() * (eMax - eMin + 1));
+        addItem(eItem, eAmount);
+        extraText = ` e +${eAmount} ${ITEM_CONFIG[eItem].emoji} ${ITEM_CONFIG[eItem].label}`;
+      }
+      showNotice(`+${amount} ${ITEM_CONFIG[item].emoji} ${ITEM_CONFIG[item].label}${extraText} — aperte G para comer`);
     }
     if (mob.type === 'guardian') {
       setVoxelCoins(c => c + 10);
@@ -643,8 +655,8 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
 
   // ---------- Salvar o progresso ----------
   // Tudo o que entra no salvamento, sempre com o valor mais novo (os timers leem daqui)
-  const latest = useRef({ voxelCoins, ownedItems, equippedItems, score, collectedFruits, blocksDestroyed, mobsKilled, playerHealth, hunger, inventory, charges });
-  latest.current = { voxelCoins, ownedItems, equippedItems, score, collectedFruits, blocksDestroyed, mobsKilled, playerHealth, hunger, inventory, charges };
+  const latest = useRef({ voxelCoins, ownedItems, equippedItems, score, collectedFruits, blocksDestroyed, mobsKilled, playerHealth, hunger, inventory, charges, bed });
+  latest.current = { voxelCoins, ownedItems, equippedItems, score, collectedFruits, blocksDestroyed, mobsKilled, playerHealth, hunger, inventory, charges, bed };
 
   const buildSave = useCallback((): GameSave => {
     const l = latest.current;
@@ -667,6 +679,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
         guardiansDefeated: mobsRef.current.filter(m => m.type === 'guardian' && m.dead && m.guardsFruit).map(m => m.guardsFruit!),
         time: timeRef.current,
         powerUses: l.charges,
+        bed: l.bed,
       };
     }
     return {
@@ -706,6 +719,41 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
     };
   }, []);
 
+  // ---------- Cama ----------
+  const isNightRef = useRef(isNight);
+  isNightRef.current = isNight;
+  /** Botão direito na cama: marca o ponto de renascer e, à noite, dorme até de manhã. */
+  const handleBlockUse = useCallback((x: number, y: number, z: number, type: string) => {
+    if (type !== 'bed') return false;
+    // renasce em pé ao lado da cama (ou em cima dela, se não houver espaço)
+    const free = (nx: number, nz: number) =>
+      !world.isSolid(nx, y, nz) && !world.isSolid(nx, y + 1, nz) && world.isSolid(nx, y - 1, nz);
+    const side = ([[1, 0], [-1, 0], [0, 1], [0, -1]] as const).find(([dx, dz]) => free(x + dx, z + dz));
+    const spawn: [number, number, number] = side
+      ? [x + side[0] + 0.5, y + 1.7, z + side[1] + 0.5]
+      : [x + 0.5, y + 2.7, z + 0.5];
+    setBed({ block: [x, y, z], spawn });
+    if (!isNightRef.current) {
+      showNotice('🛏️ Cama marcada: você renasce aqui. Dormir, só à noite 🌙');
+      return true;
+    }
+    // Dorme: a tela escurece e o dia amanhece
+    setSleeping(true);
+    releasePointer();
+    setTimeout(() => {
+      playerCommands.setTime = 0.8; // manhã
+      setHunger(h => Math.max(10, h - 10)); // acorda com um pouco de fome
+      setTimeout(() => { setSleeping(false); showNotice('☀️ Bom dia! Você dormiu a noite toda'); }, 600);
+    }, 1600);
+    return true;
+  }, [world, showNotice, releasePointer]);
+
+  // Renascer: ao lado da cama, se ela ainda existir
+  const bedOk = !!bed && world.get(bed.block[0], bed.block[1], bed.block[2]) === 'bed';
+  useEffect(() => {
+    if (bed && !bedOk) { setBed(null); showNotice('🛏️ Sua cama foi quebrada: você vai renascer no começo do mapa'); }
+  }, [bed, bedOk, worldVersion, showNotice]);
+
   const lockedFruitIds = useMemo(
     () => new Set(mobs.filter(m => m.type === 'guardian' && !m.dead && m.guardsFruit).map(m => m.guardsFruit!)),
     [mobs],
@@ -738,6 +786,7 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
         <Player
           world={world} fruits={fruits} mobs={mobs} coins={coins} skin={effectiveSkin}
           onBlockBreak={handleBlockBreak} onBlockPlace={handleBlockPlace}
+          onBlockUse={handleBlockUse} respawnPoint={bedOk ? bed!.spawn : null}
           onUseItem={equippedItem && FOOD_VALUES[equippedItem] ? () => eat(equippedItem) : undefined}
           onFruitCollect={handleFruitCollect} onCoinCollect={handleCoinCollect}
           onMobHit={handlePlayerAttack} sendPosition={isMultiplayer ? mp.sendPosition : undefined}
@@ -861,6 +910,13 @@ export function GameCanvas({ skin, multiplayer, onExit, playerId = 'visitante', 
               </p>
             </div>
           </div>
+        </div>
+      )}
+      {/* Dormindo na cama: a tela escurece */}
+      {sleeping && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/90 transition-opacity" style={{ zIndex: 75 }}>
+          <div className="text-5xl mb-3 animate-pulse">💤</div>
+          <p className="font-pixel text-sm text-white/80">Dormindo...</p>
         </div>
       )}
       {/* Menu de pausa: ESC não encerra mais a partida direto */}

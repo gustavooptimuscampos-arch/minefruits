@@ -235,6 +235,31 @@ function Flower() {
   );
 }
 
+/** Cama pequena na mão: estrado, lençol, cobertor vermelho e travesseiro. */
+function Bed() {
+  return (
+    <group position={[0, 0.06, 0]} rotation={[0, Math.PI / 4, 0]} scale={0.3}>
+      <B s={[1, 0.16, 1]} p={[0, 0.08, 0]} m={solid('#8a6236')} />
+      <B s={[0.94, 0.18, 0.94]} p={[0, 0.25, 0]} m={solid('#f1ece2')} />
+      <B s={[0.96, 0.21, 0.68]} p={[0, 0.27, 0.15]} m={solid('#b83a32')} />
+      <B s={[0.64, 0.1, 0.22]} p={[0, 0.39, -0.33]} m={solid('#f6f2ea')} />
+      <B s={[1, 0.54, 0.08]} p={[0, 0.27, -0.5]} m={solid('#8a6236')} />
+    </group>
+  );
+}
+
+/** Lã: um bloquinho fofo branco. */
+function Wool() {
+  const m = solid('#efeee9', { roughness: 1 });
+  return (
+    <group position={[0, 0.1, 0]} rotation={[0.2, 0.6, 0]}>
+      <B s={[0.2, 0.17, 0.2]} m={m} />
+      <B s={[0.12, 0.08, 0.12]} p={[0.05, 0.1, -0.03]} m={m} />
+      <B s={[0.1, 0.07, 0.1]} p={[-0.07, 0.07, 0.05]} m={m} />
+    </group>
+  );
+}
+
 const TOOL_MAT: Record<string, Mat> = { wood: 'wood', stone: 'stone', iron: 'iron', diamond: 'diamond' };
 const BLOCK_OF: Partial<Record<ItemType, BlockType>> = {
   wood: 'wood', stone: 'stone', cobblestone: 'cobblestone', planks: 'planks', dirt: 'dirt', sand: 'sand',
@@ -264,6 +289,8 @@ export function ItemModel({ item }: { item: ItemType }) {
     case 'lapis': return <Lump color="#2357c9" metal={0.3} />;
     case 'coal': return <Lump color="#232323" />;
     case 'flower': return <Flower />;
+    case 'bed': return <Bed />;
+    case 'wool': return <Wool />;
     case 'beef': case 'porkchop': case 'chicken_meat': case 'mutton': return <Meat kind={item} />;
     default: return <B s={[0.2, 0.2, 0.2]} p={[0, 0.1, 0]} m={solid('#999999')} />;
   }

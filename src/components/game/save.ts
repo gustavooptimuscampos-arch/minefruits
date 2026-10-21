@@ -35,6 +35,8 @@ export interface WorldSave {
   time: number;
   /** Usos de poder que sobraram nesta partida (continuar não recarrega). */
   powerUses?: Partial<Record<FruitType, number>>;
+  /** Cama: onde ela está e onde o jogador renasce ao lado dela. */
+  bed?: { block: [number, number, number]; spawn: [number, number, number] } | null;
 }
 
 const key = (playerId: string) => `minefruits:save:${playerId}`;

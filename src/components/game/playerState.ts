@@ -21,7 +21,7 @@ export const playerLook = new THREE.Vector3(0, 0, -1);
 export const mobFrozenUntil = new Map<string, number>();
 
 /** Pedidos dos poderes para o Player executar no próximo frame. */
-export const playerCommands: { dash: THREE.Vector3 | null } = { dash: null };
+export const playerCommands: { dash: THREE.Vector3 | null; setTime: number | null } = { dash: null, setTime: null };
 
 /** Efeitos visuais dos poderes em andamento (desenhados pelo PowerEffects). */
 export interface PowerEffect {

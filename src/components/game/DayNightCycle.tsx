@@ -2,7 +2,7 @@ import { useRef, useMemo } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { lightState } from './lightState';
-import { playerPosition } from './playerState';
+import { playerPosition, playerCommands } from './playerState';
 
 interface DayNightCycleProps {
   onTimeChange: (time: number, isNight: boolean) => void;
@@ -108,6 +108,8 @@ export function DayNightCycle({ onTimeChange, speed = 0.015, initialTime = 0.08,
   useFrame((state, delta) => {
     const dt = Math.min(delta, 0.1);
     timeRef.current = (timeRef.current + speed * dt) % 1;
+    // Dormiu na cama: pula para a manhã
+    if (playerCommands.setTime !== null) { timeRef.current = playerCommands.setTime; playerCommands.setTime = null; }
     const t = timeRef.current;
 
     const sunAngle = t * Math.PI * 2;

@@ -134,3 +134,8 @@ export const ANIMAL_FOOD: Partial<Record<MobType, [ItemType, number, number]>> =
   sheep: ['mutton', 1, 2],
   chicken: ['chicken_meat', 1, 2],
 };
+
+/** Outras coisas que os animais deixam (a ovelha dá lã, para fazer a cama). */
+export const ANIMAL_EXTRA_DROPS: Partial<Record<MobType, [ItemType, number, number]>> = {
+  sheep: ['wool', 1, 2],
+};

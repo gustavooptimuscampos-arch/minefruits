@@ -43,7 +43,7 @@ function tint(x: number, y: number, z: number) {
 }
 
 // Tabelas por id de bloco (mais rápido que comparar textos no meio do desenho)
-const TRANSPARENT_TYPES = new Set(['water', 'leaves', 'flower', 'spruce_leaves', 'jungle_leaves', 'acacia_leaves', 'torch']);
+const TRANSPARENT_TYPES = new Set(['water', 'leaves', 'flower', 'spruce_leaves', 'jungle_leaves', 'acacia_leaves', 'torch', 'bed']);
 const TRANSPARENT_ID: boolean[] = [false, ...BLOCK_TYPES.map(t => TRANSPARENT_TYPES.has(t))];
 // Com textura: o vértice fica branco (só sombra); sem textura: usa a cor do bloco
 const WHITE = new THREE.Color(1, 1, 1);
@@ -51,6 +51,11 @@ const COLOR_ID: THREE.Color[] = [new THREE.Color(), ...BLOCK_TYPES.map(t => (has
 const FLOWER_ID = BLOCK_TYPES.indexOf('flower') + 1;
 const STEM = new THREE.Color('#3f8f3a');
 const FLOWER_COLOR = new THREE.Color(BLOCK_COLORS.flower);
+const BED_ID = BLOCK_TYPES.indexOf('bed') + 1;
+const BED_WOOD = new THREE.Color('#8a6236');
+const BED_WOOD_DARK = new THREE.Color('#5c3d22');
+const BED_BLANKET = new THREE.Color(BLOCK_COLORS.bed);
+const BED_SHEET = new THREE.Color('#f1ece2');
 
 type Bucket = { pos: number[]; col: number[]; uv: number[]; idx: number[] };
 type UVRect = [number, number, number, number];
@@ -123,6 +128,19 @@ function buildChunk(world: World, cx: number, cz: number) {
           // textura das ondas presa ao mundo: emenda perfeita entre os blocos de água
           waterUv.push(x / 6, z / 6, (x + 1) / 6, z / 6, (x + 1) / 6, (z + 1) / 6, x / 6, (z + 1) / 6);
           waterIdx.push(base, base + 2, base + 1, base, base + 3, base + 2);
+          continue;
+        }
+
+        // Cama: pés, estrado de madeira, colchão com cobertor vermelho e travesseiro
+        if (id === BED_ID) {
+          for (const [lx, lz] of [[0.04, 0.04], [0.84, 0.04], [0.04, 0.84], [0.84, 0.84]]) {
+            addBox(leafy, x + lx, y, z + lz, x + lx + 0.12, y + 0.2, z + lz + 0.12, BED_WOOD_DARK);
+          }
+          addBox(leafy, x, y + 0.18, z, x + 1, y + 0.32, z + 1, BED_WOOD);
+          addBox(leafy, x + 0.03, y + 0.32, z + 0.03, x + 0.97, y + 0.5, z + 0.97, BED_SHEET);
+          addBox(leafy, x + 0.02, y + 0.33, z + 0.3, x + 0.98, y + 0.54, z + 0.98, BED_BLANKET);
+          addBox(leafy, x + 0.18, y + 0.5, z + 0.06, x + 0.82, y + 0.6, z + 0.28, BED_SHEET, 1.05);
+          addBox(leafy, x, y + 0.18, z - 0.02, x + 1, y + 0.72, z + 0.06, BED_WOOD); // cabeceira
           continue;
         }
 

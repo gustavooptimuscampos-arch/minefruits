@@ -23,6 +23,10 @@ interface PlayerProps {
   onBlockBreak: (key: string) => void;
   /** Botão direito: coloca o bloco da mão neste lugar (ou come, se for comida). */
   onBlockPlace?: (x: number, y: number, z: number) => void;
+  /** Botão direito num bloco que faz algo (a cama). Devolve true se usou. */
+  onBlockUse?: (x: number, y: number, z: number, type: string) => boolean;
+  /** Onde renascer depois de morrer (ao lado da cama). Sem cama: o começo do mapa. */
+  respawnPoint?: [number, number, number] | null;
   onUseItem?: () => void;
   onFruitCollect: (id: string) => void;
   onCoinCollect?: (id: string) => void;
@@ -116,7 +120,7 @@ function playFootstep(ref: React.MutableRefObject<AudioContext | null>, gain: nu
   } catch { /* audio unavailable */ }
 }
 
-export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, onBlockPlace, onUseItem, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, controlsEnabled = true, respawnKey = 0, startPosition = null, aura, equippedItem = null, jumpBoost = 1, speedBoost = 1 }: PlayerProps) {
+export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, onBlockPlace, onBlockUse, respawnPoint = null, onUseItem, onFruitCollect, onCoinCollect, onMobHit, sendPosition, playerHealth = 100, controlsEnabled = true, respawnKey = 0, startPosition = null, aura, equippedItem = null, jumpBoost = 1, speedBoost = 1 }: PlayerProps) {
   const { camera } = useThree();
   const controlsRef = useRef<React.ElementRef<typeof PointerLockControls>>(null);
   const velocity = useRef(new THREE.Vector3(0, 0, 0));
@@ -127,6 +131,10 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
   placeRef.current = onBlockPlace;
   const useItemRef = useRef(onUseItem);
   useItemRef.current = onUseItem;
+  const blockUseRef = useRef(onBlockUse);
+  blockUseRef.current = onBlockUse;
+  const respawnRef = useRef(respawnPoint);
+  respawnRef.current = respawnPoint;
   const placeActionRef = useRef<() => void>(() => {});
   const fruitsRef = useRef(fruits);
   const mobsRef = useRef(mobs);
@@ -179,7 +187,8 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
     const safeSpawn = findSafeSpawn(w);
     let sx = safeSpawn.x, sz = safeSpawn.z, spawnY = safeSpawn.groundY + PLAYER_HEIGHT + 2;
     // Continuando um jogo salvo: volta para onde estava (se o lugar ainda estiver livre)
-    const saved = respawnKey === 0 ? startRef.current : null;
+    // Entrando: onde parou (jogo salvo). Renascendo: ao lado da cama, se tiver uma.
+    const saved = respawnKey === 0 ? startRef.current : respawnRef.current;
     if (saved && w.inBounds(Math.floor(saved[0]), 1, Math.floor(saved[2]))) {
       const feet = saved[1] - PLAYER_HEIGHT;
       sx = saved[0]; sz = saved[2];
@@ -316,12 +325,34 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
         last = cell;
       }
     };
-    placeActionRef.current = place;
+    // Botão direito: usar a cama (se estiver mirando nela), senão comer ou colocar bloco
+    const useBlock = (): boolean => {
+      const dir = new THREE.Vector3();
+      camera.getWorldDirection(dir);
+      const origin = thirdPersonRef.current ? playerPos.current.clone() : camera.position.clone();
+      for (let d = 0.2; d < 5.5; d += 0.1) {
+        const p = origin.clone().addScaledVector(dir, d);
+        const bx = Math.floor(p.x), by = Math.floor(p.y), bz = Math.floor(p.z);
+        const t = worldRef.current.get(bx, by, bz);
+        if (!t || t === 'water') continue;
+        if (t === 'bed' && blockUseRef.current) {
+          handState.swingAt = performance.now();
+          return blockUseRef.current(bx, by, bz, t);
+        }
+        return false;
+      }
+      return false;
+    };
+    const rightAction = () => {
+      if (useBlock()) return;
+      if (useItemRef.current) useItemRef.current();
+      else place();
+    };
+    placeActionRef.current = rightAction;
     const onMouseDown = (e: MouseEvent) => {
       if (e.button !== 2 || !document.pointerLockElement) return;
       e.preventDefault();
-      if (useItemRef.current) useItemRef.current();
-      else place();
+      rightAction();
     };
     const noMenu = (e: Event) => { if (document.pointerLockElement) e.preventDefault(); };
     document.addEventListener('mousedown', onMouseDown);
@@ -370,8 +401,7 @@ export function Player({ world, fruits, mobs, coins = [], skin, onBlockBreak, on
     }
     while (touchInput.places > 0) {
       touchInput.places--;
-      if (useItemRef.current) useItemRef.current();
-      else placeActionRef.current();
+      placeActionRef.current(); // cama, comer ou colocar bloco
     }
 
     const forwardDir = new THREE.Vector3();
